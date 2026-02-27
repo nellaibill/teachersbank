@@ -1,6 +1,5 @@
 <?php
 // index.php — Single entry point router
-// Works with PATH_INFO: index.php/api/teachers (confirmed working on this server)
 
 require_once __DIR__ . '/config/database.php';
 require_once __DIR__ . '/middleware/cors.php';
@@ -11,16 +10,10 @@ setCORSHeaders();
 $method = $_SERVER['REQUEST_METHOD'];
 
 // ── Path extraction ────────────────────────────────────────────────────────────
-// Strategy 1: PATH_INFO  → set when URL is index.php/api/teachers  ✅ confirmed working
-// Strategy 2: ?route=    → fallback for environments without PATH_INFO
-// Strategy 3: REQUEST_URI stripping → last resort
-
 if (!empty($_SERVER['PATH_INFO'])) {
     $path = trim($_SERVER['PATH_INFO'], '/');
-
 } elseif (!empty($_GET['route'])) {
     $path = trim($_GET['route'], '/');
-
 } else {
     $requestUri = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
     $scriptDir  = rtrim(dirname($_SERVER['SCRIPT_NAME']), '/');
@@ -30,11 +23,23 @@ if (!empty($_SERVER['PATH_INFO'])) {
     }
 }
 
-// $path is now "api/teachers" or "api/teachers/5"
+// $path can be:
+//   "api/teachers"   → called directly:  index.php/api/teachers
+//   "teachers"       → called via rewrite: Next.js strips /api prefix
+//   "api/teachers/5" → with ID
+//   "teachers/5"     → with ID via rewrite
+
 $segments = array_values(array_filter(explode('/', $path)));
-// [0]="api"  [1]="teachers"  [2]="5" (optional)
-$resource = $segments[1] ?? '';
-$id       = isset($segments[2]) && is_numeric($segments[2]) ? (int)$segments[2] : null;
+
+// Detect whether "api" prefix is present and skip it
+// segments = ['api','teachers','5']  OR  ['teachers','5']
+if (isset($segments[0]) && $segments[0] === 'api') {
+    $resource = $segments[1] ?? '';
+    $id       = isset($segments[2]) && is_numeric($segments[2]) ? (int)$segments[2] : null;
+} else {
+    $resource = $segments[0] ?? '';
+    $id       = isset($segments[1]) && is_numeric($segments[1]) ? (int)$segments[1] : null;
+}
 
 // Also support ?id= for compatibility
 if (!$id && !empty($_GET['id'])) {
@@ -59,9 +64,12 @@ switch ($resource) {
         sendResponse([
             'success'   => true,
             'message'   => 'Teachers Bank API v1.0',
-            'path_info' => $_SERVER['PATH_INFO'] ?? 'not set',
-            'path'      => $path,
-            'resource'  => $resource,
+            'debug'     => [
+                'path'      => $path,
+                'segments'  => $segments,
+                'resource'  => $resource,
+                'path_info' => $_SERVER['PATH_INFO'] ?? 'not set',
+            ],
             'endpoints' => [
                 'GET/POST /api/teachers',
                 'GET/PUT/DELETE /api/teachers/{id}',

@@ -1,9 +1,6 @@
 // src/lib/api.ts
-// All requests go through Next.js /api/proxy/* route (eliminates CORS).
-// The proxy server-side calls: PHP_BASE/api/teachers?page=1
-// Browser calls:               /api/proxy/api/teachers?page=1  (same origin ✅)
-
-const PROXY = '/api/proxy'; // relative — always same origin, no CORS
+// Calls /api/* which Next.js rewrites to the PHP backend via next.config.js
+// No CORS issues — browser talks to same origin (localhost:3000)
 
 export async function apiFetch<T = any>(
   route: string,
@@ -12,7 +9,6 @@ export async function apiFetch<T = any>(
   params?: Record<string, string | number | undefined>
 ): Promise<{ success: boolean; message: string; data: T }> {
 
-  // Build query string
   const qs = new URLSearchParams();
   if (params) {
     Object.entries(params).forEach(([k, v]) => {
@@ -20,9 +16,8 @@ export async function apiFetch<T = any>(
     });
   }
 
-  // e.g. /api/proxy/api/teachers?page=1&limit=20
   const queryString = qs.toString();
-  const url = `${PROXY}/${route}${queryString ? '?' + queryString : ''}`;
+  const url = `/${route}${queryString ? '?' + queryString : ''}`;
 
   const res = await fetch(url, {
     method,
@@ -38,32 +33,28 @@ export async function apiFetch<T = any>(
   return json;
 }
 
-// ── Teachers ──────────────────────────────────────────────────────────────────
 export const teachersApi = {
   list:   (params?: Record<string, any>) => apiFetch('api/teachers', 'GET', undefined, params),
-  get:    (id: number)     => apiFetch(`api/teachers/${id}`),
-  create: (data: object)   => apiFetch('api/teachers', 'POST', data),
-  update: (id: number, data: object) => apiFetch(`api/teachers/${id}`, 'PUT', data),
-  delete: (id: number)     => apiFetch(`api/teachers/${id}`, 'DELETE'),
+  get:    (id: number)                   => apiFetch(`api/teachers/${id}`),
+  create: (data: object)                 => apiFetch('api/teachers', 'POST', data),
+  update: (id: number, data: object)     => apiFetch(`api/teachers/${id}`, 'PUT', data),
+  delete: (id: number)                   => apiFetch(`api/teachers/${id}`, 'DELETE'),
 };
 
-// ── Dispatch ──────────────────────────────────────────────────────────────────
 export const dispatchApi = {
   list:   (params?: Record<string, any>) => apiFetch('api/dispatch', 'GET', undefined, params),
-  get:    (id: number)     => apiFetch(`api/dispatch/${id}`),
+  get:    (id: number)                   => apiFetch(`api/dispatch/${id}`),
   scan:   (barcode: string, dispatch_date: string) => apiFetch('api/dispatch', 'POST', { barcode, dispatch_date }),
-  update: (id: number, data: object) => apiFetch(`api/dispatch/${id}`, 'PUT', data),
+  update: (id: number, data: object)     => apiFetch(`api/dispatch/${id}`, 'PUT', data),
 };
 
-// ── Followups ─────────────────────────────────────────────────────────────────
 export const followupsApi = {
   list:   (params?: Record<string, any>) => apiFetch('api/followups', 'GET', undefined, params),
-  get:    (id: number)     => apiFetch(`api/followups/${id}`),
-  create: (data: object)   => apiFetch('api/followups', 'POST', data),
-  update: (id: number, data: object) => apiFetch(`api/followups/${id}`, 'PUT', data),
+  get:    (id: number)                   => apiFetch(`api/followups/${id}`),
+  create: (data: object)                 => apiFetch('api/followups', 'POST', data),
+  update: (id: number, data: object)     => apiFetch(`api/followups/${id}`, 'PUT', data),
 };
 
-// ── Reports ───────────────────────────────────────────────────────────────────
 export const reportsApi = {
   get: (type: string, params?: Record<string, any>) =>
     apiFetch('api/reports', 'GET', undefined, { type, ...params }),
