@@ -1,7 +1,13 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  // PHP_API_BASE is server-only (not NEXT_PUBLIC_) — used by the proxy route
   env: {
-    NEXT_PUBLIC_API_BASE: process.env.NEXT_PUBLIC_API_BASE || 'http://localhost/teachers-bank-api/index.php',
+    PHP_API_BASE: process.env.PHP_API_BASE || 'http://localhost/teachersbank/teachers-bank-api/index.php',
   },
 }
 module.exports = nextConfig
+
+
+
+
+

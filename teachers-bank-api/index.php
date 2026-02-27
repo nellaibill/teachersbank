@@ -1,6 +1,6 @@
 <?php
 // index.php — Single entry point router
-// URL format: index.php?route=api/teachers or index.php?route=api/teachers/5
+// Works with PATH_INFO: index.php/api/teachers (confirmed working on this server)
 
 require_once __DIR__ . '/config/database.php';
 require_once __DIR__ . '/middleware/cors.php';
@@ -10,17 +10,17 @@ setCORSHeaders();
 
 $method = $_SERVER['REQUEST_METHOD'];
 
-// ── Path resolution (3 strategies, in priority order) ─────────────────────────
+// ── Path extraction ────────────────────────────────────────────────────────────
+// Strategy 1: PATH_INFO  → set when URL is index.php/api/teachers  ✅ confirmed working
+// Strategy 2: ?route=    → fallback for environments without PATH_INFO
+// Strategy 3: REQUEST_URI stripping → last resort
 
-// Strategy 1: ?route=api/teachers/5  (most reliable, no Apache config needed)
-if (!empty($_GET['route'])) {
-    $path = trim($_GET['route'], '/');
-
-// Strategy 2: PATH_INFO — index.php/api/teachers (needs AcceptPathInfo On)
-} elseif (!empty($_SERVER['PATH_INFO'])) {
+if (!empty($_SERVER['PATH_INFO'])) {
     $path = trim($_SERVER['PATH_INFO'], '/');
 
-// Strategy 3: mod_rewrite — REQUEST_URI stripped of base path
+} elseif (!empty($_GET['route'])) {
+    $path = trim($_GET['route'], '/');
+
 } else {
     $requestUri = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
     $scriptDir  = rtrim(dirname($_SERVER['SCRIPT_NAME']), '/');
@@ -30,15 +30,18 @@ if (!empty($_GET['route'])) {
     }
 }
 
-// $path = "api/teachers" or "api/teachers/5"
+// $path is now "api/teachers" or "api/teachers/5"
 $segments = array_values(array_filter(explode('/', $path)));
+// [0]="api"  [1]="teachers"  [2]="5" (optional)
 $resource = $segments[1] ?? '';
 $id       = isset($segments[2]) && is_numeric($segments[2]) ? (int)$segments[2] : null;
 
+// Also support ?id= for compatibility
 if (!$id && !empty($_GET['id'])) {
     $id = (int)$_GET['id'];
 }
 
+// ── Route ─────────────────────────────────────────────────────────────────────
 switch ($resource) {
     case 'teachers':
         require __DIR__ . '/api/teachers/router.php';
@@ -54,26 +57,19 @@ switch ($resource) {
         break;
     default:
         sendResponse([
-            'success'  => true,
-            'message'  => 'Teachers Bank API v1.0 — Use ?route=api/resource',
-            'debug'    => [
-                'path'        => $path,
-                'segments'    => $segments,
-                'resource'    => $resource,
-                'PATH_INFO'   => $_SERVER['PATH_INFO']   ?? 'not set',
-                'REQUEST_URI' => $_SERVER['REQUEST_URI'] ?? 'not set',
-            ],
-            'usage' => [
-                'List teachers'    => 'GET  index.php?route=api/teachers',
-                'Create teacher'   => 'POST index.php?route=api/teachers',
-                'Get teacher'      => 'GET  index.php?route=api/teachers/1',
-                'Update teacher'   => 'PUT  index.php?route=api/teachers/1',
-                'Delete teacher'   => 'DELETE index.php?route=api/teachers/1',
-                'Scan dispatch'    => 'POST index.php?route=api/dispatch',
-                'List dispatches'  => 'GET  index.php?route=api/dispatch',
-                'List followups'   => 'GET  index.php?route=api/followups',
-                'Today followups'  => 'GET  index.php?route=api/followups&date=today',
-                'Reports'          => 'GET  index.php?route=api/reports&type=consolidated',
+            'success'   => true,
+            'message'   => 'Teachers Bank API v1.0',
+            'path_info' => $_SERVER['PATH_INFO'] ?? 'not set',
+            'path'      => $path,
+            'resource'  => $resource,
+            'endpoints' => [
+                'GET/POST /api/teachers',
+                'GET/PUT/DELETE /api/teachers/{id}',
+                'GET/POST /api/dispatch',
+                'GET/PUT /api/dispatch/{id}',
+                'GET/POST /api/followups',
+                'GET/PUT /api/followups/{id}',
+                'GET /api/reports?type=consolidated|label|dispatch|school_address',
             ]
         ]);
 }

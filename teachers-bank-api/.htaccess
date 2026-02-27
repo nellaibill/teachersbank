@@ -11,11 +11,13 @@ RewriteRule ^(.*)$ - [R=200,L]
 
 # 2. CORS HEADERS for ALL responses (GET/POST/etc)
 <IfModule mod_headers.c>
-    Header always set Access-Control-Allow-Origin "http://localhost:3000"
-    Header always set Access-Control-Allow-Methods "GET, POST, PUT, DELETE, OPTIONS"
-    Header always set Access-Control-Allow-Headers "Content-Type, Accept, Authorization, X-Requested-With"
-    Header always set Access-Control-Max-Age "86400"
-    Header always set Vary "Origin"
+    # CORS headers previously set here — handled in PHP middleware now to avoid
+    # duplicate/merged headers that break browser CORS checks.
+    #Header always set Access-Control-Allow-Origin "http://localhost:3000"
+    #Header always set Access-Control-Allow-Methods "GET, POST, PUT, DELETE, OPTIONS"
+    #Header always set Access-Control-Allow-Headers "Content-Type, Accept, Authorization, X-Requested-With"
+    #Header always set Access-Control-Max-Age "86400"
+    #Header always set Vary "Origin"
 </IfModule>
 
 # 3. Your API routing
