@@ -1,0 +1,124 @@
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=DM+Mono:wght@400;500&family=Fraunces:opsz,wght@9..144,600;9..144,700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --font-display: 'Fraunces', serif;
+  --font-body:    'DM Sans', sans-serif;
+  --font-mono:    'DM Mono', monospace;
+
+  /* Sidebar */
+  --sidebar-w: 240px;
+}
+
+* { box-sizing: border-box; }
+
+html { scroll-behavior: smooth; }
+
+body {
+  font-family: var(--font-body);
+  background: #f8fafc;
+  color: #102a43;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ── Scrollbar ──────────────────────────────────────────────── */
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #9fb3c8; border-radius: 99px; }
+
+/* ── Focus ring ─────────────────────────────────────────────── */
+*:focus-visible { outline: 2px solid #3b82f6; outline-offset: 2px; }
+
+/* ── Print helpers ──────────────────────────────────────────── */
+@media print {
+  .no-print { display: none !important; }
+  .print-only { display: block !important; }
+  body { background: white; }
+}
+
+/* ── Table styles ───────────────────────────────────────────── */
+.data-table { @apply w-full text-sm; }
+.data-table th {
+  @apply bg-ink-900 text-white text-xs font-semibold uppercase tracking-wide px-4 py-3 text-left first:rounded-tl-lg last:rounded-tr-lg;
+}
+.data-table td { @apply px-4 py-3 border-b border-ink-100; }
+.data-table tr:last-child td { @apply border-0; }
+.data-table tbody tr { @apply hover:bg-brand-50 transition-colors duration-100; }
+.data-table tbody tr:nth-child(even) { @apply bg-ink-50/50; }
+
+/* ── Badge ──────────────────────────────────────────────────── */
+.badge {
+  @apply inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold;
+}
+
+/* ── Card ───────────────────────────────────────────────────── */
+.card { @apply bg-white rounded-xl shadow-card border border-ink-100 p-5; }
+.card-md { @apply bg-white rounded-xl shadow-card-md border border-ink-100 p-6; }
+
+/* ── Input / Select ─────────────────────────────────────────── */
+.form-input {
+  @apply w-full rounded-lg border border-ink-200 bg-white px-3 py-2.5 text-sm text-ink-900
+         placeholder:text-ink-400 focus:border-brand-500 focus:ring-1 focus:ring-brand-500
+         transition-colors duration-150 outline-none;
+}
+.form-label { @apply block text-xs font-semibold text-ink-600 uppercase tracking-wide mb-1.5; }
+.form-select {
+  @apply form-input appearance-none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23627d98' stroke-width='2.5'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  padding-right: 2.5rem;
+}
+
+/* ── Buttons ────────────────────────────────────────────────── */
+.btn {
+  @apply inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-semibold
+         transition-all duration-150 disabled:opacity-50 disabled:pointer-events-none cursor-pointer;
+}
+.btn-primary   { @apply btn bg-brand-600 text-white hover:bg-brand-700 shadow-sm active:scale-95; }
+.btn-secondary { @apply btn bg-ink-100 text-ink-700 hover:bg-ink-200 active:scale-95; }
+.btn-danger    { @apply btn bg-rose-500 text-white hover:bg-rose-600 shadow-sm active:scale-95; }
+.btn-ghost     { @apply btn text-ink-600 hover:bg-ink-100 hover:text-ink-800; }
+.btn-success   { @apply btn bg-emerald-600 text-white hover:bg-emerald-700 shadow-sm active:scale-95; }
+.btn-sm        { @apply px-3 py-1.5 text-xs; }
+.btn-icon      { @apply btn p-2 rounded-lg; }
+
+/* ── Stat card ──────────────────────────────────────────────── */
+.stat-card {
+  @apply card flex items-start gap-4;
+}
+
+/* ── Page header ────────────────────────────────────────────── */
+.page-title {
+  font-family: var(--font-display);
+  @apply text-2xl font-bold text-ink-900 tracking-tight;
+}
+
+/* ── Sidebar active ─────────────────────────────────────────── */
+.nav-link {
+  @apply flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-ink-400
+         hover:bg-white/10 hover:text-white transition-all duration-150 cursor-pointer;
+}
+.nav-link.active { @apply bg-white/15 text-white; }
+
+/* ── Barcode container ──────────────────────────────────────── */
+.barcode-wrap svg { max-width: 100%; height: auto; }
+
+/* ── Skeleton loader ────────────────────────────────────────── */
+.skeleton {
+  @apply animate-pulse bg-ink-100 rounded;
+}
+
+/* ── Modal backdrop ─────────────────────────────────────────── */
+.modal-backdrop {
+  @apply fixed inset-0 bg-ink-950/50 backdrop-blur-sm z-50 flex items-center justify-center p-4;
+}
+.modal-box {
+  @apply bg-white rounded-2xl shadow-card-lg w-full max-w-lg max-h-[90vh] overflow-y-auto animate-slide-up;
+}
+
+/* ── Toast override ─────────────────────────────────────────── */
+.react-hot-toast { font-family: var(--font-body) !important; font-size: 13px !important; }

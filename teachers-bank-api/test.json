@@ -1,0 +1,286 @@
+{
+  "info": {
+    "name": "Teachers Bank API (Updated)",
+    "description": "Updated collection with index.php base URL\nWorks with/without mod_rewrite",
+    "_postman_id": "teachers-bank-updated",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost/teachers-bank-api/index.php"
+    }
+  ],
+  "item": [
+    {
+      "name": "📋 1. TEACHERS",
+      "item": [
+        {
+          "name": "Create Teacher",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "    pm.collectionVariables.set(\"teacher_id\", pm.response.json().data.id);",
+                  "    pm.collectionVariables.set(\"teacher_barcode\", pm.response.json().data.barcode);",
+                  "    console.log(\"Saved Teacher ID:\", pm.collectionVariables.get(\"teacher_id\"));",
+                  "    console.log(\"Saved Barcode:\", pm.collectionVariables.get(\"teacher_barcode\"));",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"teacher_name\": \"Mr. Thirumoorthy\",\n  \"contact_number\": \"9585735917\",\n  \"address_1\": \"Ponparappi Post\",\n  \"address_2\": \"Senthurai TK\",\n  \"address_3\": \"Ariyalur - 621709\",\n  \"dt_code\": \"ARL\",\n  \"sub_code\": \"MAT\",\n  \"std\": \"10\",\n  \"year_code\": \"2025\",\n  \"medium\": \"TM\",\n  \"school_name\": \"Govt. Higher Secondary School, Ponparappi\",\n  \"school_type\": \"Govt. School\"\n}"
+            },
+            "url": { "raw": "{{base_url}}/api/teachers", "host": ["{{base_url}}"], "path": ["api", "teachers"] }
+          }
+        },
+        {
+          "name": "List All Teachers",
+          "request": { "method": "GET", "url": { "raw": "{{base_url}}/api/teachers", "host": ["{{base_url}}"], "path": ["api", "teachers"] } }
+        },
+        {
+          "name": "Filter Teachers",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/teachers?dt_code=ARL&medium=TM",
+              "host": ["{{base_url}}"],
+              "path": ["api", "teachers"],
+              "query": [{ "key": "dt_code", "value": "ARL" }, { "key": "medium", "value": "TM" }]
+            }
+          }
+        },
+        {
+          "name": "Search Teacher",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/teachers?search=Thirumoorthy",
+              "host": ["{{base_url}}"],
+              "path": ["api", "teachers"],
+              "query": [{ "key": "search", "value": "Thirumoorthy" }]
+            }
+          }
+        },
+        {
+          "name": "Get Teacher {{teacher_id}}",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/teachers/{{teacher_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "teachers", "{{teacher_id}}"]
+            }
+          }
+        },
+        {
+          "name": "Update Teacher {{teacher_id}}",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"teacher_name\": \"Mr. Thirumoorthy S\",\n  \"contact_number\": \"9585735917\",\n  \"isActive\": 1\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/teachers/{{teacher_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "teachers", "{{teacher_id}}"]
+            }
+          }
+        },
+        {
+          "name": "Delete Teacher {{teacher_id}}",
+          "request": {
+            "method": "DELETE",
+            "url": {
+              "raw": "{{base_url}}/api/teachers/{{teacher_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "teachers", "{{teacher_id}}"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "🚚 2. DISPATCH",
+      "item": [
+        {
+          "name": "Create Dispatch (use {{teacher_barcode}})",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"barcode\": \"{{teacher_barcode}}\",\n  \"dispatch_date\": \"2026-02-27\"\n}"
+            },
+            "url": { "raw": "{{base_url}}/api/dispatch", "host": ["{{base_url}}"], "path": ["api", "dispatch"] }
+          }
+        },
+        {
+          "name": "🔄 Duplicate Dispatch (expect 409)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"barcode\": \"{{teacher_barcode}}\",\n  \"dispatch_date\": \"2026-02-27\"\n}"
+            },
+            "url": { "raw": "{{base_url}}/api/dispatch", "host": ["{{base_url}}"], "path": ["api", "dispatch"] }
+          }
+        },
+        {
+          "name": "List Dispatches",
+          "request": { "method": "GET", "url": { "raw": "{{base_url}}/api/dispatch", "host": ["{{base_url}}"], "path": ["api", "dispatch"] } }
+        },
+        {
+          "name": "Filter by Date",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/dispatch?date=2026-02-27",
+              "host": ["{{base_url}}"],
+              "path": ["api", "dispatch"],
+              "query": [{ "key": "date", "value": "2026-02-27" }]
+            }
+          }
+        },
+        {
+          "name": "Get Dispatch 1",
+          "request": { "method": "GET", "url": { "raw": "{{base_url}}/api/dispatch/1", "host": ["{{base_url}}"], "path": ["api", "dispatch", "1"] } }
+        },
+        {
+          "name": "Update POD (ID=1)",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"pod_date\": \"2026-03-05\",\n  \"status\": \"Delivered\"\n}"
+            },
+            "url": { "raw": "{{base_url}}/api/dispatch/1", "host": ["{{base_url}}"], "path": ["api", "dispatch", "1"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "📞 3. FOLLOWUPS",
+      "item": [
+        {
+          "name": "Today's Pending",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/followups?date=today&status=Pending",
+              "host": ["{{base_url}}"],
+              "path": ["api", "followups"],
+              "query": [{ "key": "date", "value": "today" }, { "key": "status", "value": "Pending" }]
+            }
+          }
+        },
+        {
+          "name": "By Dispatch ID=1",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/followups?dispatch_id=1",
+              "host": ["{{base_url}}"],
+              "path": ["api", "followups"],
+              "query": [{ "key": "dispatch_id", "value": "1" }]
+            }
+          }
+        },
+        {
+          "name": "Update Followup (ID=1)",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"Informed\",\n  \"remarks\": \"Teacher confirmed receipt\"\n}"
+            },
+            "url": { "raw": "{{base_url}}/api/followups/1", "host": ["{{base_url}}"], "path": ["api", "followups", "1"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "📊 4. REPORTS",
+      "item": [
+        {
+          "name": "Consolidated Report",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/reports?type=consolidated",
+              "host": ["{{base_url}}"],
+              "path": ["api", "reports"],
+              "query": [{ "key": "type", "value": "consolidated" }]
+            }
+          }
+        },
+        {
+          "name": "Consolidated + Filter",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/reports?type=consolidated&dt_code=ARL",
+              "host": ["{{base_url}}"],
+              "path": ["api", "reports"],
+              "query": [{ "key": "type", "value": "consolidated" }, { "key": "dt_code", "value": "ARL" }]
+            }
+          }
+        },
+        {
+          "name": "Label Report",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/reports?type=label",
+              "host": ["{{base_url}}"],
+              "path": ["api", "reports"],
+              "query": [{ "key": "type", "value": "label" }]
+            }
+          }
+        },
+        {
+          "name": "Dispatch Report (Date Range)",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/reports?type=dispatch&from_date=2026-02-01&to_date=2026-02-28",
+              "host": ["{{base_url}}"],
+              "path": ["api", "reports"],
+              "query": [
+                { "key": "type", "value": "dispatch" },
+                { "key": "from_date", "value": "2026-02-01" },
+                { "key": "to_date", "value": "2026-02-28" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "School Address Report",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/reports?type=school_address",
+              "host": ["{{base_url}}"],
+              "path": ["api", "reports"],
+              "query": [{ "key": "type", "value": "school_address" }]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}
