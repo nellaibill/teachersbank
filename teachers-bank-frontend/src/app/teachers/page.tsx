@@ -1,13 +1,9 @@
 'use client';
 import { useEffect, useState, useCallback, Suspense } from 'react';
-import { useSearchParams, useRouter } from 'next/navigation';
-import {
-  Plus, Search, Filter, Edit2, Trash2, Eye,
-  Phone, MapPin, X, Loader2, Users, RefreshCw
-} from 'lucide-react';
+import { useSearchParams } from 'next/navigation';
+import { Plus, Search, Filter, Edit2, Trash2, Eye, Phone, X, RefreshCw, Users } from 'lucide-react';
 import { teachersApi } from '@/lib/api';
-import { Teacher, Pagination as PaginationType, SCHOOL_TYPES, MEDIUMS, STANDARDS, DISPATCH_STATUS_COLORS } from '@/lib/types';
-import { formatDate } from '@/lib/utils';
+import { Teacher, Pagination as PaginationType, DISTRICTS, SUBJECTS, MEDIUMS, STANDARDS, SCHOOL_TYPES } from '@/lib/types';
 import TeacherFormModal from '@/components/teachers/TeacherFormModal';
 import TeacherDetailModal from '@/components/teachers/TeacherDetailModal';
 import Pagination from '@/components/ui/Pagination';
@@ -16,20 +12,20 @@ import toast from 'react-hot-toast';
 
 function TeachersContent() {
   const searchParams = useSearchParams();
-  const router = useRouter();
 
-  const [teachers, setTeachers]         = useState<Teacher[]>([]);
-  const [pagination, setPagination]     = useState<PaginationType | null>(null);
-  const [loading, setLoading]           = useState(true);
-  const [page, setPage]                 = useState(1);
-  const [search, setSearch]             = useState('');
-  const [filters, setFilters]           = useState({ dt_code: '', sub_code: '', std: '', medium: '', school_type: '', isActive: '1' });
-  const [showFilters, setShowFilters]   = useState(false);
-  const [showForm, setShowForm]         = useState(false);
-  const [editTeacher, setEditTeacher]   = useState<Teacher | null>(null);
-  const [viewTeacher, setViewTeacher]   = useState<Teacher | null>(null);
+  const [teachers,    setTeachers]    = useState<Teacher[]>([]);
+  const [pagination,  setPagination]  = useState<PaginationType | null>(null);
+  const [loading,     setLoading]     = useState(true);
+  const [page,        setPage]        = useState(1);
+  const [search,      setSearch]      = useState('');
+  const [filters, setFilters] = useState({
+    dt_code: '', sub_code: '', std: '', medium: '', school_type: '', isActive: '1'
+  });
+  const [showFilters, setShowFilters] = useState(false);
+  const [showForm,    setShowForm]    = useState(false);
+  const [editTeacher, setEditTeacher] = useState<Teacher | null>(null);
+  const [viewTeacher, setViewTeacher] = useState<Teacher | null>(null);
 
-  // Open new form if ?action=new
   useEffect(() => {
     if (searchParams.get('action') === 'new') setShowForm(true);
   }, [searchParams]);
@@ -44,9 +40,7 @@ function TeachersContent() {
       setPagination(res.data?.pagination ?? null);
     } catch (e: any) {
       toast.error(e.message || 'Failed to load teachers');
-    } finally {
-      setLoading(false);
-    }
+    } finally { setLoading(false); }
   }, [page, search, filters]);
 
   useEffect(() => { load(); }, [load]);
@@ -57,12 +51,11 @@ function TeachersContent() {
       await teachersApi.delete(t.id);
       toast.success('Teacher deactivated');
       load();
-    } catch (e: any) {
-      toast.error(e.message || 'Failed to deactivate');
-    }
+    } catch (e: any) { toast.error(e.message); }
   }
 
-  const activeFilters = Object.entries(filters).filter(([k, v]) => v && !(k === 'isActive' && v === '1')).length;
+  const activeFilters = Object.entries(filters)
+    .filter(([k, v]) => v && !(k === 'isActive' && v === '1')).length;
 
   return (
     <div className="space-y-5 max-w-7xl">
@@ -79,13 +72,13 @@ function TeachersContent() {
         </button>
       </div>
 
-      {/* Search + filters bar */}
+      {/* Search + Filters */}
       <div className="card p-4 space-y-3">
         <div className="flex gap-3 flex-wrap">
           <div className="relative flex-1 min-w-[200px]">
             <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-400" />
             <input value={search} onChange={e => { setSearch(e.target.value); setPage(1); }}
-              className="form-input pl-9" placeholder="Search by name, phone, school…" />
+              className="form-input pl-9" placeholder="Search by name, phone, school, address…" />
           </div>
           <button onClick={() => setShowFilters(v => !v)}
             className={`btn ${showFilters ? 'btn-primary' : 'btn-secondary'} relative`}>
@@ -96,49 +89,64 @@ function TeachersContent() {
               </span>
             )}
           </button>
-          <button onClick={load} className="btn-secondary btn btn-icon" title="Refresh">
+          <button onClick={load} className="btn-secondary btn btn-icon">
             <RefreshCw size={15} className={loading ? 'animate-spin' : ''} />
           </button>
         </div>
 
         {showFilters && (
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 pt-3 border-t border-ink-100 animate-slide-up">
+            {/* District */}
             <div>
-              <label className="form-label">DT Code</label>
-              <input className="form-input" value={filters.dt_code}
-                onChange={e => { setFilters(f => ({ ...f, dt_code: e.target.value.toUpperCase() })); setPage(1); }}
-                placeholder="ARL" />
+              <label className="form-label">District</label>
+              <select className="form-select" value={filters.dt_code}
+                onChange={e => { setFilters(f => ({ ...f, dt_code: e.target.value })); setPage(1); }}>
+                <option value="">All</option>
+                {Object.entries(DISTRICTS).sort((a,b) => a[1].localeCompare(b[1])).map(([code, name]) => (
+                  <option key={code} value={code}>{name}</option>
+                ))}
+              </select>
             </div>
+            {/* Subject */}
             <div>
               <label className="form-label">Subject</label>
-              <input className="form-input" value={filters.sub_code}
-                onChange={e => { setFilters(f => ({ ...f, sub_code: e.target.value.toUpperCase() })); setPage(1); }}
-                placeholder="MAT" />
+              <select className="form-select" value={filters.sub_code}
+                onChange={e => { setFilters(f => ({ ...f, sub_code: e.target.value })); setPage(1); }}>
+                <option value="">All</option>
+                {Object.entries(SUBJECTS).map(([code, name]) => (
+                  <option key={code} value={code}>{name}</option>
+                ))}
+              </select>
             </div>
+            {/* Standard */}
             <div>
               <label className="form-label">Standard</label>
               <select className="form-select" value={filters.std}
                 onChange={e => { setFilters(f => ({ ...f, std: e.target.value })); setPage(1); }}>
                 <option value="">All</option>
-                {STANDARDS.map(s => <option key={s}>{s}</option>)}
+                {STANDARDS.map(s => <option key={s} value={s}>Std {s}</option>)}
               </select>
             </div>
+            {/* Medium */}
             <div>
               <label className="form-label">Medium</label>
               <select className="form-select" value={filters.medium}
                 onChange={e => { setFilters(f => ({ ...f, medium: e.target.value })); setPage(1); }}>
                 <option value="">All</option>
-                {MEDIUMS.map(m => <option key={m}>{m}</option>)}
+                <option value="TM">Tamil Medium</option>
+                <option value="EM">English Medium</option>
               </select>
             </div>
+            {/* School Type */}
             <div>
               <label className="form-label">School Type</label>
               <select className="form-select" value={filters.school_type}
                 onChange={e => { setFilters(f => ({ ...f, school_type: e.target.value })); setPage(1); }}>
                 <option value="">All</option>
-                {SCHOOL_TYPES.map(t => <option key={t}>{t}</option>)}
+                {SCHOOL_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
               </select>
             </div>
+            {/* Status */}
             <div>
               <label className="form-label">Status</label>
               <select className="form-select" value={filters.isActive}
@@ -150,10 +158,8 @@ function TeachersContent() {
             </div>
             {activeFilters > 0 && (
               <div className="flex items-end">
-                <button onClick={() => { setFilters({ dt_code: '', sub_code: '', std: '', medium: '', school_type: '', isActive: '1' }); setPage(1); }}
-                  className="btn-ghost btn btn-sm w-full">
-                  <X size={13} /> Clear
-                </button>
+                <button onClick={() => { setFilters({ dt_code:'',sub_code:'',std:'',medium:'',school_type:'',isActive:'1'}); setPage(1); }}
+                  className="btn-ghost btn btn-sm w-full"><X size={13}/> Clear</button>
               </div>
             )}
           </div>
@@ -178,7 +184,8 @@ function TeachersContent() {
                   <th>#</th>
                   <th>Teacher</th>
                   <th>Contact</th>
-                  <th>District / Subject</th>
+                  <th>District</th>
+                  <th>Subjects</th>
                   <th>Std / Medium</th>
                   <th>School</th>
                   <th>Status</th>
@@ -191,29 +198,46 @@ function TeachersContent() {
                     <td className="text-ink-400 font-mono text-xs w-10">{t.id}</td>
                     <td>
                       <p className="font-medium text-ink-900">{t.teacher_name}</p>
-                      <p className="text-xs text-ink-400 font-mono mt-0.5">{t.barcode}</p>
+                      <p className="text-[11px] text-ink-400 font-mono mt-0.5">{t.barcode}</p>
                     </td>
                     <td>
                       <div className="flex items-center gap-1.5 text-sm text-ink-700">
                         <Phone size={12} className="text-ink-400 flex-shrink-0" />
                         {t.contact_number}
                       </div>
+                      {t.pincode && <p className="text-xs text-ink-400 mt-0.5">📮 {t.pincode}</p>}
                     </td>
                     <td>
-                      <div className="flex gap-1.5 flex-wrap">
-                        {t.dt_code && <span className="badge bg-ink-100 text-ink-600">{t.dt_code}</span>}
-                        {t.sub_code && <span className="badge bg-brand-100 text-brand-700">{t.sub_code}</span>}
+                      {t.dt_code
+                        ? <span className="badge bg-ink-100 text-ink-700">{DISTRICTS[t.dt_code] || t.dt_code}</span>
+                        : '—'}
+                    </td>
+                    <td>
+                      <div className="flex gap-1 flex-wrap max-w-[140px]">
+                        {(t.sub_code_arr || []).map(s => (
+                          <span key={s} className="badge bg-brand-100 text-brand-700 text-[10px]">
+                            {SUBJECTS[s] || s}
+                          </span>
+                        ))}
                       </div>
                     </td>
                     <td>
-                      <div className="flex gap-1.5 flex-wrap">
-                        {t.std && <span className="badge bg-amber-100 text-amber-700">Std {t.std}</span>}
-                        {t.medium && <span className="badge bg-ink-100 text-ink-600">{t.medium}</span>}
+                      <div className="flex flex-col gap-1">
+                        {(t.std_arr || []).length > 0 && (
+                          <span className="badge bg-amber-100 text-amber-700 text-[10px]">
+                            Std {t.std_arr!.join(', ')}
+                          </span>
+                        )}
+                        {(t.medium_arr || []).length > 0 && (
+                          <span className="badge bg-ink-100 text-ink-600 text-[10px]">
+                            {t.medium_arr!.join(' + ')}
+                          </span>
+                        )}
                       </div>
                     </td>
-                    <td className="max-w-[180px]">
+                    <td className="max-w-[160px]">
                       <p className="text-sm text-ink-700 truncate">{t.school_name || '—'}</p>
-                      {t.school_type && <p className="text-xs text-ink-400">{t.school_type}</p>}
+                      {t.school_type && <p className="text-[11px] text-ink-400">{t.school_type}</p>}
                     </td>
                     <td>
                       <span className={`badge ${t.isActive ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-600'}`}>
@@ -222,18 +246,9 @@ function TeachersContent() {
                     </td>
                     <td>
                       <div className="flex items-center justify-end gap-1">
-                        <button onClick={() => setViewTeacher(t)}
-                          className="btn-ghost btn btn-icon btn-sm text-ink-500" title="View">
-                          <Eye size={15} />
-                        </button>
-                        <button onClick={() => { setEditTeacher(t); setShowForm(true); }}
-                          className="btn-ghost btn btn-icon btn-sm text-brand-600" title="Edit">
-                          <Edit2 size={15} />
-                        </button>
-                        <button onClick={() => handleDelete(t)}
-                          className="btn-ghost btn btn-icon btn-sm text-rose-500" title="Deactivate">
-                          <Trash2 size={15} />
-                        </button>
+                        <button onClick={() => setViewTeacher(t)} className="btn-ghost btn btn-icon btn-sm text-ink-500"><Eye size={15}/></button>
+                        <button onClick={() => { setEditTeacher(t); setShowForm(true); }} className="btn-ghost btn btn-icon btn-sm text-brand-600"><Edit2 size={15}/></button>
+                        <button onClick={() => handleDelete(t)} className="btn-ghost btn btn-icon btn-sm text-rose-500"><Trash2 size={15}/></button>
                       </div>
                     </td>
                   </tr>
@@ -242,7 +257,6 @@ function TeachersContent() {
             </table>
           </div>
         )}
-
         {pagination && pagination.total_pages > 1 && (
           <div className="px-4 pb-4">
             <Pagination page={page} totalPages={pagination.total_pages}
@@ -252,20 +266,15 @@ function TeachersContent() {
         )}
       </div>
 
-      {/* Modals */}
       {showForm && (
-        <TeacherFormModal
-          teacher={editTeacher}
+        <TeacherFormModal teacher={editTeacher}
           onClose={() => { setShowForm(false); setEditTeacher(null); }}
-          onSaved={load}
-        />
+          onSaved={load} />
       )}
       {viewTeacher && (
-        <TeacherDetailModal
-          teacher={viewTeacher}
+        <TeacherDetailModal teacher={viewTeacher}
           onClose={() => setViewTeacher(null)}
-          onEdit={t => { setViewTeacher(null); setEditTeacher(t); setShowForm(true); }}
-        />
+          onEdit={t => { setViewTeacher(null); setEditTeacher(t); setShowForm(true); }} />
       )}
     </div>
   );
@@ -273,7 +282,7 @@ function TeachersContent() {
 
 export default function TeachersPage() {
   return (
-    <Suspense fallback={<div className="p-8 space-y-3">{Array(5).fill(0).map((_, i) => <div key={i} className="h-12 skeleton" />)}</div>}>
+    <Suspense fallback={<div className="p-8 space-y-3">{Array(5).fill(0).map((_,i) => <div key={i} className="h-12 skeleton"/>)}</div>}>
       <TeachersContent />
     </Suspense>
   );

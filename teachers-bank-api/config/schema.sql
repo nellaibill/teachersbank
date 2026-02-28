@@ -8,24 +8,22 @@ USE teachers_bank;
 -- ============================================================
 -- Teachers Table
 -- ============================================================
-CREATE TABLE IF NOT EXISTS teachers (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    teacher_name VARCHAR(150) NOT NULL,
-    contact_number VARCHAR(15) NOT NULL,
-    address_1 VARCHAR(255),
-    address_2 VARCHAR(255),
-    address_3 VARCHAR(255),
-    dt_code VARCHAR(10),
-    sub_code VARCHAR(10),
-    std VARCHAR(10),
-    year_code VARCHAR(10),
-    medium VARCHAR(5),
-    school_name TEXT,
-    school_type VARCHAR(50),
-    barcode TEXT,
-    isActive TINYINT(1) DEFAULT 1,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+CREATE TABLE teachers (
+  id              INT AUTO_INCREMENT PRIMARY KEY,
+  teacher_name    VARCHAR(150)  NOT NULL,
+  contact_number  VARCHAR(15)   NOT NULL,
+  teacher_address TEXT,                    -- combined (was address_1 + address_2)
+  pincode         CHAR(6),                 -- exactly 6 digits (was address_3)
+  dt_code         VARCHAR(10),             -- single value: "ARL"
+  sub_code        VARCHAR(255),            -- CSV multi: "MAT,SCI,PHY"
+  std             VARCHAR(100),            -- CSV multi: "6,7,8,9"
+  medium          VARCHAR(50),             -- CSV multi: "TM,EM"
+  school_name     TEXT,
+  school_type     VARCHAR(50),             -- includes CBSE School now
+  barcode         TEXT,
+  isActive        TINYINT(1) DEFAULT 1,
+  created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 );
 
 -- ============================================================

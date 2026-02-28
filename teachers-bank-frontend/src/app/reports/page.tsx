@@ -3,7 +3,7 @@ import { useEffect, useState, useCallback, useRef, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { BarChart2, Printer, Download, RefreshCw, Filter, X, Loader2, FileText } from 'lucide-react';
 import { reportsApi } from '@/lib/api';
-import { SCHOOL_TYPES, MEDIUMS, STANDARDS } from '@/lib/types';
+import { SCHOOL_TYPES, MEDIUMS, STANDARDS, DISTRICTS, SUBJECTS } from '@/lib/types';
 import { formatDate } from '@/lib/utils';
 import BarcodeDisplay from '@/components/ui/BarcodeDisplay';
 import EmptyState from '@/components/ui/EmptyState';
@@ -105,32 +105,44 @@ function ReportsContent() {
         </p>
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
           <div>
-            <label className="form-label">DT Code</label>
-            <input className="form-input" value={filters.dt_code} onChange={e => setFilter('dt_code', e.target.value.toUpperCase())} placeholder="ARL" />
+            <label className="form-label">District</label>
+            <select className="form-select" value={filters.dt_code} onChange={e => setFilter('dt_code', e.target.value)}>
+              <option value="">All</option>
+              {Object.entries(DISTRICTS).sort((a,b) => a[1].localeCompare(b[1])).map(([code, name]) => (
+                <option key={code} value={code}>{name} ({code})</option>
+              ))}
+            </select>
           </div>
           <div>
             <label className="form-label">Subject</label>
-            <input className="form-input" value={filters.sub_code} onChange={e => setFilter('sub_code', e.target.value.toUpperCase())} placeholder="MAT" />
+            <select className="form-select" value={filters.sub_code} onChange={e => setFilter('sub_code', e.target.value)}>
+              <option value="">All</option>
+              {Object.entries(SUBJECTS).map(([code, name]) => (
+                <option key={code} value={code}>{name}</option>
+              ))}
+            </select>
           </div>
           <div>
             <label className="form-label">Standard</label>
             <select className="form-select" value={filters.std} onChange={e => setFilter('std', e.target.value)}>
               <option value="">All</option>
-              {STANDARDS.map(s => <option key={s}>{s}</option>)}
+              {STANDARDS.map(s => <option key={s} value={s}>Std {s}</option>)}
             </select>
           </div>
           <div>
             <label className="form-label">Medium</label>
             <select className="form-select" value={filters.medium} onChange={e => setFilter('medium', e.target.value)}>
               <option value="">All</option>
-              {MEDIUMS.map(m => <option key={m}>{m}</option>)}
+              {Object.entries(MEDIUMS).map(([code, name]) => (
+                <option key={code} value={code}>{name}</option>
+              ))}
             </select>
           </div>
           <div>
             <label className="form-label">School Type</label>
             <select className="form-select" value={filters.school_type} onChange={e => setFilter('school_type', e.target.value)}>
               <option value="">All</option>
-              {SCHOOL_TYPES.map(t => <option key={t}>{t}</option>)}
+              {SCHOOL_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
             </select>
           </div>
           {(reportType === 'dispatch') && (

@@ -1,25 +1,33 @@
 <?php
 // middleware/barcode.php
+// Barcode format: <DT_CODE>|<FIRST_SUB>|<MED>|<STD_RANGE>|<ID>
+// Example: ARL|MAT|TM|6-8|000012
 
-/**
- * Generate barcode string for a teacher
- * Format: ARL|<DT_CODE>|<SUB_CODE>|<MEDIUM>|<STD>|<AUTO_ID>
- * Example: ARL|EN6|X|EM|01 -> barcode image
- */
-function generateBarcodeString($teacher) {
-    $dt   = strtoupper($teacher['dt_code']   ?? 'XX');
-    $sub  = strtoupper($teacher['sub_code']  ?? 'XX');
-    $med  = strtoupper($teacher['medium']    ?? 'EM');
-    $std  = str_pad($teacher['std'] ?? '00', 2, '0', STR_PAD_LEFT);
-    $id   = str_pad($teacher['id'],           6, '0', STR_PAD_LEFT);
+function generateBarcodeString($teacher): string {
+    $dt  = strtoupper($teacher['dt_code'] ?? 'XX');
 
-    return "ARL|{$dt}|{$sub}|{$med}|{$std}|{$id}";
+    // sub_code may be CSV — use first value only for barcode brevity
+    $subRaw = $teacher['sub_code'] ?? '';
+    $sub    = strtoupper(explode(',', $subRaw)[0] ?: 'XX');
+
+    // medium may be CSV — use first value
+    $medRaw = $teacher['medium'] ?? '';
+    $med    = strtoupper(explode(',', $medRaw)[0] ?: 'XX');
+
+    // std may be CSV — show as range if multiple, e.g. "6,7,8" → "6-8"
+    $stdRaw = $teacher['std'] ?? '';
+    $stds   = array_filter(explode(',', $stdRaw));
+    if (count($stds) > 1) {
+        $std = min($stds) . '-' . max($stds);
+    } else {
+        $std = $stds[0] ?? '00';
+    }
+
+    $id = str_pad($teacher['id'], 6, '0', STR_PAD_LEFT);
+
+    return "{$dt}|{$sub}|{$med}|{$std}|{$id}";
 }
 
-/**
- * Generate a barcode image as base64 PNG using pure PHP (no external lib needed)
- * Returns the barcode string; the frontend renders it visually using a JS barcode lib
- */
-function generateBarcode($teacher) {
+function generateBarcode($teacher): string {
     return generateBarcodeString($teacher);
 }
