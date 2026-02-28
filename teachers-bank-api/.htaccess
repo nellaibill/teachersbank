@@ -1,21 +1,42 @@
-Options -Indexes
+# Enable mod_rewrite
 RewriteEngine On
 
-# Handle OPTIONS preflight
-RewriteCond %{REQUEST_METHOD} OPTIONS
-RewriteRule ^(.*)$ $1 [R=200,L]
+# ── CORS — set headers at Apache level (before PHP runs) ─────────────────────
+# This ensures CORS headers are present even if PHP errors out
 
-# DON'T rewrite if already hitting index.php or real files
+SetEnvIf Origin "^http://localhost:3000$"        CORS_ALLOW=1
+SetEnvIf Origin "^http://localhost$"             CORS_ALLOW=1
+SetEnvIf Origin "^https://iiplrgscbse\.com$"    CORS_ALLOW=1
+SetEnvIf Origin "^http://iiplrgscbse\.com$"     CORS_ALLOW=1
+
+Header always set Access-Control-Allow-Methods  "GET, POST, PUT, DELETE, OPTIONS" env=CORS_ALLOW
+Header always set Access-Control-Allow-Headers  "Content-Type, Authorization, X-Requested-With, Accept" env=CORS_ALLOW
+Header always set Access-Control-Allow-Credentials "true" env=CORS_ALLOW
+Header always set Access-Control-Max-Age        "86400" env=CORS_ALLOW
+
+# Reflect the exact Origin back (required when Allow-Credentials: true)
+# Use the incoming request header `Origin` (`%{Origin}i`) instead of
+# an env var expansion which can result in `(null)` when not set.
+Header always unset Access-Control-Allow-Origin
+# For development: reflect known allowed origin explicitly to avoid
+# platform-specific expansion issues. This sends a valid Origin value
+# when `CORS_ALLOW` is set.
+Header always set Access-Control-Allow-Origin   "http://localhost:3000" env=CORS_ALLOW
+
+# For unknown origins (Postman, curl) — no credentials, use wildcard
+Header set Access-Control-Allow-Origin "*" env=!CORS_ALLOW
+
+# ── Answer OPTIONS preflight immediately — skip PHP entirely ──────────────────
+# Return a bare 200 for OPTIONS without rewriting the URL (use '-' to
+# indicate no substitution). This avoids invoking index.php and prevents
+# malformed header expansion during the internal rewrite.
+RewriteCond %{REQUEST_METHOD} OPTIONS
+RewriteRule ^ - [R=200,L]
+
+# ── Route everything through index.php using PATH_INFO ────────────────────────
 RewriteCond %{REQUEST_FILENAME} !-f
 RewriteCond %{REQUEST_FILENAME} !-d
-RewriteCond %{REQUEST_URI} !^/index\.php
 RewriteRule ^(.*)$ index.php/$1 [L,QSA]
 
-# Security headers
-<IfModule mod_headers.c>
-    Header always set Access-Control-Allow-Origin "http://localhost:3000"
-    Header always set Access-Control-Allow-Methods "GET, POST, PUT, DELETE, OPTIONS"
-    Header always set Access-Control-Allow-Headers "Content-Type, Authorization"
-    Header always set X-Content-Type-Options nosniff
-    Header always set X-Frame-Options DENY
-</IfModule>
+# Pass Authorization header through to PHP (some hosts strip it)
+RewriteRule .* - [E=HTTP_AUTHORIZATION:%{HTTP:Authorization}]

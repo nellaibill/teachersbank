@@ -1,0 +1,620 @@
+{
+  "info": {
+    "name": "Teachers Bank API (With Auth)",
+    "description": "Original collection updated with JWT authentication.\n\nHOW TO USE:\n1. Set base_url variable to your server\n2. Run '🔐 Login' first — token auto-saves to {{token}} variable\n3. All other requests automatically send: Authorization: Bearer {{token}}\n4. Token is valid for 8 hours",
+    "_postman_id": "teachers-bank-with-auth",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "base_url",        "value": "https://iiplrgscbse.com/teachers-bank-api/index.php", "description": "Change to http://localhost/teachersbank/teachers-bank-api/index.php for local" },
+    { "key": "token",           "value": "", "description": "Auto-filled by Login request" },
+    { "key": "teacher_id",      "value": "" },
+    { "key": "teacher_barcode", "value": "" },
+    { "key": "dispatch_id",     "value": "" },
+    { "key": "followup_id",     "value": "" }
+  ],
+  "auth": {
+    "type": "bearer",
+    "bearer": [{ "key": "token", "value": "{{token}}", "type": "string" }]
+  },
+  "item": [
+    {
+      "name": "🔐 0. AUTH",
+      "item": [
+        {
+          "name": "🔐 Login (saves token automatically)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var json = pm.response.json();",
+                  "if (json.success && json.data && json.data.token) {",
+                  "    pm.collectionVariables.set('token', json.data.token);",
+                  "    console.log('✅ Token saved successfully');",
+                  "    console.log('👤 User:', json.data.user.name, '| Role:', json.data.user.role);",
+                  "    pm.test('Login successful', function() { pm.response.to.have.status(200); });",
+                  "    pm.test('Token received', function() { pm.expect(json.data.token).to.be.a('string'); });",
+                  "} else {",
+                  "    console.log('❌ Login failed:', json.message);",
+                  "    pm.test('Login failed - check credentials', function() { pm.expect(false).to.be.true; });",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"admin@teachersbank.com\",\n  \"password\": \"Admin@123\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/auth/login",
+              "host": ["{{base_url}}"],
+              "path": ["api", "auth", "login"]
+            },
+            "description": "Default credentials: admin@teachersbank.com / Admin@123\nToken is auto-saved to {{token}} variable on success."
+          }
+        },
+        {
+          "name": "👤 Get Current User (me)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/auth/me",
+              "host": ["{{base_url}}"],
+              "path": ["api", "auth", "me"]
+            },
+            "description": "Returns the currently logged-in user's details using the saved {{token}}"
+          }
+        },
+        {
+          "name": "🚪 Logout",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.collectionVariables.set('token', '');",
+                  "console.log('✅ Token cleared — logged out');"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/auth/logout",
+              "host": ["{{base_url}}"],
+              "path": ["api", "auth", "logout"]
+            }
+          }
+        },
+        {
+          "name": "⛔ Test Unauthorized (no token)",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/teachers",
+              "host": ["{{base_url}}"],
+              "path": ["api", "teachers"]
+            },
+            "description": "Should return 401 Unauthorized"
+          }
+        }
+      ]
+    },
+    {
+      "name": "👥 1. USERS (Admin Only)",
+      "item": [
+        {
+          "name": "List All Users",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/users",
+              "host": ["{{base_url}}"],
+              "path": ["api", "users"]
+            }
+          }
+        },
+        {
+          "name": "Create Operator User",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var json = pm.response.json();",
+                  "if (json.success) {",
+                  "    console.log('✅ User created, ID:', json.data.user.id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"John Operator\",\n  \"email\": \"operator@teachersbank.com\",\n  \"password\": \"Pass@123\",\n  \"role\": \"operator\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/users",
+              "host": ["{{base_url}}"],
+              "path": ["api", "users"]
+            }
+          }
+        },
+        {
+          "name": "Create Admin User",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Jane Admin\",\n  \"email\": \"jane@teachersbank.com\",\n  \"password\": \"Admin@456\",\n  \"role\": \"admin\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/users",
+              "host": ["{{base_url}}"],
+              "path": ["api", "users"]
+            }
+          }
+        },
+        {
+          "name": "Get User by ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/users/1",
+              "host": ["{{base_url}}"],
+              "path": ["api", "users", "1"]
+            }
+          }
+        },
+        {
+          "name": "Update User (name + role)",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"John Updated\",\n  \"role\": \"admin\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/users/2",
+              "host": ["{{base_url}}"],
+              "path": ["api", "users", "2"]
+            }
+          }
+        },
+        {
+          "name": "Change Password",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"password\": \"NewPass@789\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/users/2",
+              "host": ["{{base_url}}"],
+              "path": ["api", "users", "2"]
+            }
+          }
+        },
+        {
+          "name": "Deactivate User",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/users/2",
+              "host": ["{{base_url}}"],
+              "path": ["api", "users", "2"]
+            }
+          }
+        },
+        {
+          "name": "Reactivate User",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"isActive\": 1\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/users/2",
+              "host": ["{{base_url}}"],
+              "path": ["api", "users", "2"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "📋 2. TEACHERS",
+      "item": [
+        {
+          "name": "Create Teacher",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var json = pm.response.json();",
+                  "if (json.success && json.data) {",
+                  "    pm.collectionVariables.set('teacher_id', json.data.id);",
+                  "    pm.collectionVariables.set('teacher_barcode', json.data.barcode);",
+                  "    console.log('✅ Saved Teacher ID:', json.data.id);",
+                  "    console.log('📊 Saved Barcode:', json.data.barcode);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"teacher_name\": \"Mr. Thirumoorthy\",\n  \"contact_number\": \"9585735917\",\n  \"address_1\": \"Ponparappi Post\",\n  \"address_2\": \"Senthurai TK\",\n  \"address_3\": \"Ariyalur - 621709\",\n  \"dt_code\": \"ARL\",\n  \"sub_code\": \"MAT\",\n  \"std\": \"10\",\n  \"year_code\": \"2025\",\n  \"medium\": \"TM\",\n  \"school_name\": \"Govt. Higher Secondary School, Ponparappi\",\n  \"school_type\": \"Govt. School\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/teachers",
+              "host": ["{{base_url}}"],
+              "path": ["api", "teachers"]
+            }
+          }
+        },
+        {
+          "name": "List All Teachers",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/teachers",
+              "host": ["{{base_url}}"],
+              "path": ["api", "teachers"]
+            }
+          }
+        },
+        {
+          "name": "Filter Teachers",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/teachers?dt_code=ARL&medium=TM",
+              "host": ["{{base_url}}"],
+              "path": ["api", "teachers"],
+              "query": [
+                { "key": "dt_code", "value": "ARL" },
+                { "key": "medium",  "value": "TM" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Search Teacher",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/teachers?search=Thirumoorthy",
+              "host": ["{{base_url}}"],
+              "path": ["api", "teachers"],
+              "query": [{ "key": "search", "value": "Thirumoorthy" }]
+            }
+          }
+        },
+        {
+          "name": "Get Teacher {{teacher_id}}",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/teachers/{{teacher_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "teachers", "{{teacher_id}}"]
+            }
+          }
+        },
+        {
+          "name": "Update Teacher {{teacher_id}}",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"teacher_name\": \"Mr. Thirumoorthy S\",\n  \"contact_number\": \"9585735917\",\n  \"isActive\": 1\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/teachers/{{teacher_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "teachers", "{{teacher_id}}"]
+            }
+          }
+        },
+        {
+          "name": "Delete Teacher {{teacher_id}}",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/teachers/{{teacher_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "teachers", "{{teacher_id}}"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "🚚 3. DISPATCH",
+      "item": [
+        {
+          "name": "Create Dispatch (use {{teacher_barcode}})",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var json = pm.response.json();",
+                  "if (json.success && json.data && json.data.dispatch) {",
+                  "    pm.collectionVariables.set('dispatch_id', json.data.dispatch.id);",
+                  "    console.log('✅ Dispatch ID saved:', json.data.dispatch.id);",
+                  "    console.log('📅 Reminder:', json.data.reminder_date);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"barcode\": \"{{teacher_barcode}}\",\n  \"dispatch_date\": \"2026-02-27\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/dispatch",
+              "host": ["{{base_url}}"],
+              "path": ["api", "dispatch"]
+            }
+          }
+        },
+        {
+          "name": "🔄 Duplicate Dispatch (expect 409)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"barcode\": \"{{teacher_barcode}}\",\n  \"dispatch_date\": \"2026-02-27\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/dispatch",
+              "host": ["{{base_url}}"],
+              "path": ["api", "dispatch"]
+            }
+          }
+        },
+        {
+          "name": "List Dispatches",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/dispatch",
+              "host": ["{{base_url}}"],
+              "path": ["api", "dispatch"]
+            }
+          }
+        },
+        {
+          "name": "Filter by Date",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/dispatch?date=2026-02-27",
+              "host": ["{{base_url}}"],
+              "path": ["api", "dispatch"],
+              "query": [{ "key": "date", "value": "2026-02-27" }]
+            }
+          }
+        },
+        {
+          "name": "Get Dispatch 1",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/dispatch/1",
+              "host": ["{{base_url}}"],
+              "path": ["api", "dispatch", "1"]
+            }
+          }
+        },
+        {
+          "name": "Update POD (ID=1)",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"pod_date\": \"2026-03-05\",\n  \"status\": \"Delivered\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/dispatch/1",
+              "host": ["{{base_url}}"],
+              "path": ["api", "dispatch", "1"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "📞 4. FOLLOWUPS",
+      "item": [
+        {
+          "name": "Today's Pending",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/followups?date=today&status=Pending",
+              "host": ["{{base_url}}"],
+              "path": ["api", "followups"],
+              "query": [
+                { "key": "date",   "value": "today" },
+                { "key": "status", "value": "Pending" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "By Dispatch ID=1",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/followups?dispatch_id=1",
+              "host": ["{{base_url}}"],
+              "path": ["api", "followups"],
+              "query": [{ "key": "dispatch_id", "value": "1" }]
+            }
+          }
+        },
+        {
+          "name": "Update Followup (ID=1)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var json = pm.response.json();",
+                  "if (json.success && json.data && json.data.next_followup) {",
+                  "    pm.collectionVariables.set('followup_id', json.data.next_followup.id);",
+                  "    console.log('✅ Next followup created, ID:', json.data.next_followup.id);",
+                  "    console.log('📅 Next reminder:', json.data.next_followup.reminder_date);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"Informed\",\n  \"remarks\": \"Teacher confirmed receipt\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/followups/1",
+              "host": ["{{base_url}}"],
+              "path": ["api", "followups", "1"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "📊 5. REPORTS",
+      "item": [
+        {
+          "name": "Consolidated Report",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/reports?type=consolidated",
+              "host": ["{{base_url}}"],
+              "path": ["api", "reports"],
+              "query": [{ "key": "type", "value": "consolidated" }]
+            }
+          }
+        },
+        {
+          "name": "Consolidated + Filter",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/reports?type=consolidated&dt_code=ARL",
+              "host": ["{{base_url}}"],
+              "path": ["api", "reports"],
+              "query": [
+                { "key": "type",    "value": "consolidated" },
+                { "key": "dt_code", "value": "ARL" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Label Report",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/reports?type=label",
+              "host": ["{{base_url}}"],
+              "path": ["api", "reports"],
+              "query": [{ "key": "type", "value": "label" }]
+            }
+          }
+        },
+        {
+          "name": "Dispatch Report (Date Range)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/reports?type=dispatch&from_date=2026-02-01&to_date=2026-02-28",
+              "host": ["{{base_url}}"],
+              "path": ["api", "reports"],
+              "query": [
+                { "key": "type",      "value": "dispatch" },
+                { "key": "from_date", "value": "2026-02-01" },
+                { "key": "to_date",   "value": "2026-02-28" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "School Address Report",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/reports?type=school_address",
+              "host": ["{{base_url}}"],
+              "path": ["api", "reports"],
+              "query": [{ "key": "type", "value": "school_address" }]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

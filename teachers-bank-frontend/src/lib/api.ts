@@ -1,9 +1,7 @@
 // src/lib/api.ts
-// To switch between local and production, change PHP_BASE below.
+import { getAuthToken } from '@/context/AuthContext';
 
-const PHP_BASE = 'https://iiplrgscbse.com/teachers-bank-api/index.php';
-// For local development, comment above and uncomment below:
-// const PHP_BASE = 'http://localhost/teachersbank/teachers-bank-api/index.php';
+const PHP_BASE = 'http://localhost/teachersbank/teachers-bank-api/index.php';
 
 export async function apiFetch<T = any>(
   route: string,
@@ -19,17 +17,26 @@ export async function apiFetch<T = any>(
     });
   }
 
-  const queryString = qs.toString();
-  const url = `${PHP_BASE}/${route}${queryString ? '?' + queryString : ''}`;
+  const token = getAuthToken();
+  const url   = `${PHP_BASE}/${route}${qs.toString() ? '?' + qs.toString() : ''}`;
 
   const res = await fetch(url, {
     method,
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      'Content-Type':  'application/json',
+      ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+    },
     ...(body ? { body: JSON.stringify(body) } : {}),
     cache: 'no-store',
   });
 
   const json = await res.json();
+
+  if (res.status === 401) {
+    window.location.href = '/login';
+    throw new Error('Session expired');
+  }
+
   if (!res.ok && !json.success) {
     throw new Error(json.message || 'API error');
   }
@@ -61,4 +68,12 @@ export const followupsApi = {
 export const reportsApi = {
   get: (type: string, params?: Record<string, any>) =>
     apiFetch('api/reports', 'GET', undefined, { type, ...params }),
+};
+
+export const usersApi = {
+  list:   ()                         => apiFetch('api/users'),
+  get:    (id: number)               => apiFetch(`api/users/${id}`),
+  create: (data: object)             => apiFetch('api/users', 'POST', data),
+  update: (id: number, data: object) => apiFetch(`api/users/${id}`, 'PUT', data),
+  delete: (id: number)               => apiFetch(`api/users/${id}`, 'DELETE'),
 };
