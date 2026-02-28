@@ -6,7 +6,7 @@
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
-    { "key": "base_url",        "value": "https://iiplrgscbse.com/teachers-bank-api/index.php", "description": "Change to http://localhost/teachersbank/teachers-bank-api/index.php for local" },
+    { "key": "base_url",        "value": "https://iiplrgscbse.com/teachers-bank-api/", "description": "Change to https://iiplrgscbse.com/teachers-bank-api/index.php for local" },
     { "key": "token",           "value": "", "description": "Auto-filled by Login request" },
     { "key": "teacher_id",      "value": "" },
     { "key": "teacher_barcode", "value": "" },

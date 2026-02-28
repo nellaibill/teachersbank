@@ -19,7 +19,7 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | null>(null);
 
-const PHP_BASE = 'http://localhost/teachersbank/teachers-bank-api/index.php';
+const PHP_BASE = 'https://iiplrgscbse.com/teachers-bank-api/index.php';
 const PUBLIC_PATHS = ['/login'];
 const TOKEN_KEY = 'tb_jwt';
 
