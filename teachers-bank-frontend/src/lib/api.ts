@@ -1,6 +1,9 @@
 // src/lib/api.ts
-// Calls /api/* which Next.js rewrites to the PHP backend via next.config.js
-// No CORS issues — browser talks to same origin (localhost:3000)
+// To switch between local and production, change PHP_BASE below.
+
+const PHP_BASE = 'https://iiplrgscbse.com/teachers-bank-api/index.php';
+// For local development, comment above and uncomment below:
+// const PHP_BASE = 'http://localhost/teachersbank/teachers-bank-api/index.php';
 
 export async function apiFetch<T = any>(
   route: string,
@@ -17,7 +20,7 @@ export async function apiFetch<T = any>(
   }
 
   const queryString = qs.toString();
-  const url = `/${route}${queryString ? '?' + queryString : ''}`;
+  const url = `${PHP_BASE}/${route}${queryString ? '?' + queryString : ''}`;
 
   const res = await fetch(url, {
     method,

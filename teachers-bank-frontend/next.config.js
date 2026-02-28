@@ -1,12 +1,3 @@
 /** @type {import('next').NextConfig} */
-const nextConfig = {
-  async rewrites() {
-    return [
-      {
-        source: '/api/:path*',
-        destination: 'http://localhost/teachersbank/teachers-bank-api/index.php/:path*',
-      },
-    ]
-  },
-}
+const nextConfig = {}
 module.exports = nextConfig
