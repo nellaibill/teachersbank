@@ -1,7 +1,7 @@
 'use client';
-import { useEffect, useState, useCallback, useRef, Suspense } from 'react';
+import { useEffect, useState, useCallback, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { BarChart2, Printer, Download, RefreshCw, Filter, X, Loader2, FileText } from 'lucide-react';
+import { Printer, RefreshCw, Filter, X, FileText } from 'lucide-react';
 import { reportsApi } from '@/lib/api';
 import { SCHOOL_TYPES, MEDIUMS, STANDARDS, DISTRICTS, SUBJECTS } from '@/lib/types';
 import { formatDate } from '@/lib/utils';
@@ -17,19 +17,27 @@ const REPORT_TYPES = [
 ];
 
 // ── Label card for printing ───────────────────────────────────────────────────
-function LabelCard({ label }: { label: any }) {
+function LabelCard({ label, serialNo }: { label: any; serialNo: number }) {
+  const districtName = label.dt_code ? (DISTRICTS[label.dt_code] || label.dt_code) : '';
+  const districtWithPin = [districtName, label.pincode].filter(Boolean).join(' - ');
+
   return (
-    <div className="border-2 border-ink-200 rounded-lg p-3 text-left print:border print:border-black print:rounded-none" style={{ minHeight: 120 }}>
+    <div
+      className="relative border-2 border-ink-200 rounded-lg p-3 text-left print:border print:border-black print:rounded-none min-h-[170px]"
+      style={{ breakInside: 'avoid', pageBreakInside: 'avoid' }}
+    >
       {label.barcode && (
         <div className="mb-2">
-          <BarcodeDisplay value={label.barcode} height={40} fontSize={9} width={1.5} />
+          <BarcodeDisplay value={label.barcode} height={34} fontSize={8} width={1.2} />
         </div>
       )}
       <p className="font-bold text-sm text-ink-900 leading-tight">{label.teacher_name}</p>
-      {label.full_address && (
-        <p className="text-xs text-ink-600 mt-1 leading-snug whitespace-pre-line">{label.full_address}</p>
-      )}
-      <p className="text-xs text-ink-500 mt-1">Ph: {label.contact_number}</p>
+      <p className="text-xs text-ink-600 mt-1 leading-snug whitespace-pre-line">{label.teacher_address || '-'}</p>
+      <p className="text-xs text-ink-600 mt-1">{districtWithPin || '-'}</p>
+      <p className="text-xs text-ink-500 mt-1">Ph: {label.contact_number || '-'}</p>
+      <div className="absolute right-1.5 bottom-1.5 bg-black text-white text-[10px] leading-none px-1.5 py-1 rounded-sm font-mono">
+        {serialNo}
+      </div>
     </div>
   );
 }
@@ -64,14 +72,22 @@ function ReportsContent() {
   const setFilter = (k: string, v: string) => setFilters(f => ({ ...f, [k]: v }));
   const clearFilters = () => setFilters({ dt_code: '', sub_code: '', std: '', medium: '', school_type: '', from_date: '', to_date: '', status: '' });
   const hasFilters = Object.values(filters).some(Boolean);
+  const labelPages = reportType === 'label'
+    ? Array.from({ length: Math.ceil(data.length / 9) }, (_, i) => data.slice(i * 9, i * 9 + 9))
+    : [];
 
   return (
     <div className="space-y-5 max-w-7xl">
+      <style jsx global>{`
+        @media print {
+          @page {
+            size: landscape;
+            margin: 10px 8mm 8mm 8mm;
+          }
+        }
+      `}</style>
       <div className="flex items-start justify-between flex-wrap gap-3">
-        <div>
-          <h1 className="page-title">Reports</h1>
-          <p className="text-sm text-ink-500 mt-0.5">{data.length} records</p>
-        </div>
+
         <div className="flex gap-2 no-print">
           <button onClick={load} disabled={loading} className="btn-secondary btn">
             <RefreshCw size={15} className={loading ? 'animate-spin' : ''} /> Refresh
@@ -180,11 +196,26 @@ function ReportsContent() {
       ) : data.length === 0 ? (
         <EmptyState icon={FileText} title="No data found" description="Try adjusting your filters" />
       ) : reportType === 'label' ? (
-        // Label grid
-        <div className="print:p-0">
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 print:grid-cols-4 print:gap-2">
-            {data.map((label: any) => <LabelCard key={label.id} label={label} />)}
-          </div>
+        // 3x3 label pages (9 records per printed page)
+        <div className="print:p-0 space-y-4 print:space-y-0">
+          {labelPages.map((page, pageIndex) => (
+            <div
+              key={pageIndex}
+              className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 print:grid-cols-3 print:gap-2"
+              style={{
+                pageBreakAfter: pageIndex < labelPages.length - 1 ? 'always' : 'auto',
+                paddingTop: '30px',
+              }}
+            >
+              {page.map((label: any, itemIndex: number) => (
+                <LabelCard
+                  key={`${label.id}-${pageIndex}-${itemIndex}`}
+                  label={label}
+                  serialNo={pageIndex * 9 + itemIndex + 1}
+                />
+              ))}
+            </div>
+          ))}
         </div>
       ) : reportType === 'consolidated' ? (
         <div className="card p-0 overflow-hidden">
