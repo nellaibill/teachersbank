@@ -219,14 +219,11 @@ function createTeacher() {
     if (!$stmt->execute()) sendError('Failed to create teacher: ' . $stmt->error, 500);
 
     $teacherId = $conn->insert_id;
-    $barcode   = generateBarcode(array_merge($body, [
-        'id' => $teacherId, 'dt_code' => $dt_code,
-        'sub_code' => $sub_code, 'std' => $std, 'medium' => $medium,
-    ]));
+    $barcode = generateBarcode(['id' => $teacherId]);
 
-    $conn->prepare("UPDATE teachers SET barcode = ? WHERE id = ?")
-         ->bind_param('si', $barcode, $teacherId) || null;
-    $conn->query("UPDATE teachers SET barcode = '$barcode' WHERE id = $teacherId");
+    $upd = $conn->prepare("UPDATE teachers SET barcode = ? WHERE id = ?");
+    $upd->bind_param('si', $barcode, $teacherId);
+    $upd->execute();
 
     $sel = $conn->prepare("SELECT * FROM teachers WHERE id = ?");
     $sel->bind_param('i', $teacherId);

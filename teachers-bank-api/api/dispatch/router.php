@@ -9,8 +9,8 @@ if ($id) {
     }
 } else {
     switch ($method) {
-        case 'GET':  listDispatches();   break;
-        case 'POST': scanAndDispatch();  break;
+        case 'GET':  listDispatches();  break;
+        case 'POST': scanAndDispatch(); break;
         default: sendError('Method not allowed', 405);
     }
 }
@@ -23,12 +23,14 @@ function scanAndDispatch() {
     $barcode      = trim($body['barcode']);
     $dispatchDate = $body['dispatch_date'] ?? date('Y-m-d');
 
+    // Find teacher by barcode
     $stmt = $conn->prepare("SELECT * FROM teachers WHERE barcode = ? AND isActive = 1");
     $stmt->bind_param('s', $barcode);
     $stmt->execute();
     $teacher = $stmt->get_result()->fetch_assoc();
-    if (!$teacher) sendError('Invalid barcode. Teacher not found.', 404);
+    if (!$teacher) sendError('Invalid barcode — teacher not found.', 404);
 
+    // Duplicate check for same day
     $chk = $conn->prepare("SELECT id FROM dispatch WHERE teacher_id = ? AND dispatch_date = ?");
     $chk->bind_param('is', $teacher['id'], $dispatchDate);
     $chk->execute();
@@ -36,6 +38,7 @@ function scanAndDispatch() {
         sendError('Already dispatched today. Duplicate dispatch rejected.', 409);
     }
 
+    // Insert dispatch
     $ins = $conn->prepare("INSERT INTO dispatch (teacher_id, dispatch_date, status) VALUES (?, ?, 'Dispatched')");
     $ins->bind_param('is', $teacher['id'], $dispatchDate);
     if (!$ins->execute()) sendError('Failed to create dispatch: ' . $ins->error, 500);
@@ -43,12 +46,16 @@ function scanAndDispatch() {
     $dispatchId   = $conn->insert_id;
     $reminderDate = date('Y-m-d', strtotime($dispatchDate . ' +10 days'));
 
+    // Auto-create followup level 1
     $fup = $conn->prepare("INSERT INTO followups (dispatch_id, followup_level, reminder_date, status) VALUES (?, 1, ?, 'Pending')");
     $fup->bind_param('is', $dispatchId, $reminderDate);
     $fup->execute();
 
+    // Return full dispatch with teacher info (updated columns)
     $sel = $conn->prepare("
-        SELECT d.*, t.teacher_name, t.contact_number, t.school_name, t.address_1, t.address_2, t.address_3
+        SELECT d.*, t.teacher_name, t.contact_number, t.school_name,
+               t.teacher_address, t.pincode, t.barcode,
+               t.dt_code, t.sub_code, t.medium, t.std
         FROM dispatch d JOIN teachers t ON d.teacher_id = t.id WHERE d.id = ?
     ");
     $sel->bind_param('i', $dispatchId);
@@ -91,28 +98,24 @@ function listDispatches() {
         $types   .= 's';
     }
 
-    $page   = max(1, (int)($_GET['page'] ?? 1));
-    $limit  = max(1, min(100, (int)($_GET['limit'] ?? 20)));
-    $offset = ($page - 1) * $limit;
+    $page     = max(1, (int)($_GET['page']  ?? 1));
+    $limit    = max(1, min(100, (int)($_GET['limit'] ?? 20)));
+    $offset   = ($page - 1) * $limit;
     $whereSQL = implode(' AND ', $where);
 
-    $countSQL = "SELECT COUNT(*) AS total FROM dispatch d WHERE $whereSQL";
-    $stmt = $conn->prepare($countSQL);
+    $stmt = $conn->prepare("SELECT COUNT(*) AS total FROM dispatch d WHERE $whereSQL");
     if ($types) $stmt->bind_param($types, ...$params);
     $stmt->execute();
     $total = $stmt->get_result()->fetch_assoc()['total'];
 
-    $sql = "
+    $stmt2 = $conn->prepare("
         SELECT d.*, t.teacher_name, t.contact_number, t.school_name, t.barcode,
-               t.dt_code, t.sub_code, t.medium, t.std,
+               t.dt_code, t.sub_code, t.medium, t.std, t.teacher_address, t.pincode,
                (SELECT COUNT(*) FROM followups f WHERE f.dispatch_id = d.id) AS followup_count
         FROM dispatch d JOIN teachers t ON d.teacher_id = t.id
         WHERE $whereSQL ORDER BY d.dispatch_date DESC, d.id DESC LIMIT ? OFFSET ?
-    ";
-    $stmt2     = $conn->prepare($sql);
-    $allTypes  = $types . 'ii';
-    $allParams = array_merge($params, [$limit, $offset]);
-    $stmt2->bind_param($allTypes, ...$allParams);
+    ");
+    $stmt2->bind_param($types . 'ii', ...[...$params, $limit, $offset]);
     $stmt2->execute();
     $result = $stmt2->get_result();
 
@@ -122,14 +125,19 @@ function listDispatches() {
     $conn->close();
     sendSuccess([
         'dispatches' => $dispatches,
-        'pagination' => ['total' => (int)$total, 'page' => $page, 'limit' => $limit, 'total_pages' => (int)ceil($total / $limit)]
+        'pagination' => [
+            'total'       => (int)$total, 'page' => $page,
+            'limit'       => $limit,      'total_pages' => (int)ceil($total / $limit)
+        ]
     ]);
 }
 
 function getDispatch($id) {
     $conn = getDBConnection();
     $stmt = $conn->prepare("
-        SELECT d.*, t.teacher_name, t.contact_number, t.school_name, t.barcode, t.address_1, t.address_2, t.address_3
+        SELECT d.*, t.teacher_name, t.contact_number, t.school_name,
+               t.teacher_address, t.pincode, t.barcode,
+               t.dt_code, t.sub_code, t.medium, t.std
         FROM dispatch d JOIN teachers t ON d.teacher_id = t.id WHERE d.id = ?
     ");
     $stmt->bind_param('i', $id);
@@ -157,9 +165,8 @@ function updateDispatch($id) {
     $chk->execute();
     if (!$chk->get_result()->fetch_assoc()) sendError('Dispatch not found', 404);
 
-    $allowed = ['pod_date', 'status'];
     $sets = []; $params = []; $types = '';
-    foreach ($allowed as $field) {
+    foreach (['pod_date', 'status'] as $field) {
         if (isset($body[$field])) {
             $sets[]   = "$field = ?";
             $params[] = $body[$field];
@@ -173,6 +180,16 @@ function updateDispatch($id) {
     $stmt->bind_param($types, ...$params);
     if (!$stmt->execute()) sendError('Failed to update dispatch', 500);
 
+    // Return updated dispatch
+    $sel = $conn->prepare("
+        SELECT d.*, t.teacher_name, t.contact_number, t.school_name,
+               t.teacher_address, t.pincode, t.barcode
+        FROM dispatch d JOIN teachers t ON d.teacher_id = t.id WHERE d.id = ?
+    ");
+    $sel->bind_param('i', $id);
+    $sel->execute();
+    $dispatch = $sel->get_result()->fetch_assoc();
+
     $conn->close();
-    sendSuccess([], 'Dispatch updated successfully');
+    sendSuccess($dispatch, 'Dispatch updated successfully');
 }

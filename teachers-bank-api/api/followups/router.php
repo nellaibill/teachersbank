@@ -9,8 +9,8 @@ if ($id) {
     }
 } else {
     switch ($method) {
-        case 'GET':  listFollowups();   break;
-        case 'POST': createFollowup();  break;
+        case 'GET':  listFollowups();  break;
+        case 'POST': createFollowup(); break;
         default: sendError('Method not allowed', 405);
     }
 }
@@ -53,31 +53,29 @@ function listFollowups() {
         $types   .= 's';
     }
 
-    $page   = max(1, (int)($_GET['page'] ?? 1));
-    $limit  = max(1, min(100, (int)($_GET['limit'] ?? 20)));
-    $offset = ($page - 1) * $limit;
+    $page     = max(1, (int)($_GET['page']  ?? 1));
+    $limit    = max(1, min(100, (int)($_GET['limit'] ?? 20)));
+    $offset   = ($page - 1) * $limit;
     $whereSQL = implode(' AND ', $where);
 
-    $countSQL = "SELECT COUNT(*) AS total FROM followups f WHERE $whereSQL";
-    $stmt = $conn->prepare($countSQL);
+    $stmt = $conn->prepare("SELECT COUNT(*) AS total FROM followups f WHERE $whereSQL");
     if ($types) $stmt->bind_param($types, ...$params);
     $stmt->execute();
     $total = $stmt->get_result()->fetch_assoc()['total'];
 
-    $sql = "
+    // Updated: teacher_address + pincode instead of address_1/2/3
+    $stmt2 = $conn->prepare("
         SELECT f.*, d.dispatch_date, d.pod_date, d.status AS dispatch_status,
                t.teacher_name, t.contact_number, t.school_name,
-               t.address_1, t.address_2, t.address_3, t.barcode
+               t.teacher_address, t.pincode, t.barcode,
+               t.dt_code, t.sub_code, t.medium, t.std
         FROM followups f
         JOIN dispatch d ON f.dispatch_id = d.id
         JOIN teachers t ON d.teacher_id = t.id
         WHERE $whereSQL
         ORDER BY f.reminder_date ASC, f.followup_level ASC LIMIT ? OFFSET ?
-    ";
-    $stmt2     = $conn->prepare($sql);
-    $allTypes  = $types . 'ii';
-    $allParams = array_merge($params, [$limit, $offset]);
-    $stmt2->bind_param($allTypes, ...$allParams);
+    ");
+    $stmt2->bind_param($types . 'ii', ...[...$params, $limit, $offset]);
     $stmt2->execute();
     $result = $stmt2->get_result();
 
@@ -87,7 +85,10 @@ function listFollowups() {
     $conn->close();
     sendSuccess([
         'followups'  => $followups,
-        'pagination' => ['total' => (int)$total, 'page' => $page, 'limit' => $limit, 'total_pages' => (int)ceil($total / $limit)]
+        'pagination' => [
+            'total'       => (int)$total, 'page' => $page,
+            'limit'       => $limit,      'total_pages' => (int)ceil($total / $limit)
+        ]
     ]);
 }
 
@@ -95,7 +96,9 @@ function getFollowup($id) {
     $conn = getDBConnection();
     $stmt = $conn->prepare("
         SELECT f.*, d.dispatch_date, d.pod_date, d.status AS dispatch_status,
-               t.teacher_name, t.contact_number, t.school_name, t.barcode
+               t.teacher_name, t.contact_number, t.school_name,
+               t.teacher_address, t.pincode, t.barcode,
+               t.dt_code, t.sub_code, t.medium, t.std
         FROM followups f
         JOIN dispatch d ON f.dispatch_id = d.id
         JOIN teachers t ON d.teacher_id = t.id
@@ -144,14 +147,14 @@ function updateFollowup($id) {
     $body = getRequestBody();
     $conn = getDBConnection();
 
-    $chk = $conn->prepare("SELECT id FROM followups WHERE id = ?");
+    $chk = $conn->prepare("SELECT id, followup_level, dispatch_id FROM followups WHERE id = ?");
     $chk->bind_param('i', $id);
     $chk->execute();
-    if (!$chk->get_result()->fetch_assoc()) sendError('Followup not found', 404);
+    $current = $chk->get_result()->fetch_assoc();
+    if (!$current) sendError('Followup not found', 404);
 
-    $allowed = ['status', 'remarks', 'reminder_date'];
     $sets = []; $params = []; $types = '';
-    foreach ($allowed as $field) {
+    foreach (['status', 'remarks', 'reminder_date'] as $field) {
         if (isset($body[$field])) {
             $sets[]   = "$field = ?";
             $params[] = $body[$field];
@@ -160,26 +163,20 @@ function updateFollowup($id) {
     }
     if (empty($sets)) sendError('No valid fields to update', 400);
 
-    // Check if we need to auto-create next level
-    $autoCreate = false;
-    if (isset($body['status']) && in_array($body['status'], ['Informed', 'Completed'])) {
-        $cur = $conn->prepare("SELECT followup_level, dispatch_id FROM followups WHERE id = ?");
-        $cur->bind_param('i', $id);
-        $cur->execute();
-        $current = $cur->get_result()->fetch_assoc();
-        if ($current && $current['followup_level'] < 4) $autoCreate = $current;
-    }
-
     $params[] = $id; $types .= 'i';
     $stmt = $conn->prepare("UPDATE followups SET " . implode(', ', $sets) . " WHERE id = ?");
     $stmt->bind_param($types, ...$params);
     if (!$stmt->execute()) sendError('Failed to update followup', 500);
 
+    // Auto-create next level if Informed/Completed and level < 4
     $nextFollowup = null;
-    if ($autoCreate) {
-        $nextLevel  = $autoCreate['followup_level'] + 1;
-        $dispId     = $autoCreate['dispatch_id'];
-        $dSel       = $conn->prepare("SELECT dispatch_date FROM dispatch WHERE id = ?");
+    if (isset($body['status']) && in_array($body['status'], ['Informed', 'Completed'])
+        && $current['followup_level'] < 4)
+    {
+        $nextLevel = $current['followup_level'] + 1;
+        $dispId    = $current['dispatch_id'];
+
+        $dSel = $conn->prepare("SELECT dispatch_date FROM dispatch WHERE id = ?");
         $dSel->bind_param('i', $dispId);
         $dSel->execute();
         $dRow         = $dSel->get_result()->fetch_assoc();
@@ -188,7 +185,8 @@ function updateFollowup($id) {
         $nxt = $conn->prepare("INSERT INTO followups (dispatch_id, followup_level, reminder_date, status) VALUES (?, ?, ?, 'Pending')");
         $nxt->bind_param('iis', $dispId, $nextLevel, $reminderDate);
         $nxt->execute();
-        $nxtId  = $conn->insert_id;
+        $nxtId = $conn->insert_id;
+
         $nxtSel = $conn->prepare("SELECT * FROM followups WHERE id = ?");
         $nxtSel->bind_param('i', $nxtId);
         $nxtSel->execute();
