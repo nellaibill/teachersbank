@@ -20,27 +20,39 @@ const REPORT_TYPES = [
 function LabelCard({ label, serialNo }: { label: any; serialNo: number }) {
   const districtName = label.dt_code ? (DISTRICTS[label.dt_code] || label.dt_code) : '';
   const districtWithPin = [districtName, label.pincode].filter(Boolean).join(' - ');
+  const subjectLine = [label.dt_code, label.sub_code, label.std, label.medium]
+    .map((v: string | undefined) => (v || '').trim())
+    .filter(Boolean)
+    .join('-');
 
   return (
-    <div
-      className="relative border-2 border-ink-200 rounded-lg p-3 text-left print:border print:border-black print:rounded-none min-h-[170px]"
-      style={{ breakInside: 'avoid', pageBreakInside: 'avoid' }}
-    >
-      {label.barcode && (
-        <div className="mb-2">
-          <BarcodeDisplay value={label.barcode} height={34} fontSize={8} width={1.2} />
-        </div>
-      )}
-      <p className="font-bold text-sm text-ink-900 leading-tight">{label.teacher_name}</p>
-      <p className="text-xs text-ink-600 mt-1 leading-snug whitespace-pre-line">{label.teacher_address || '-'}</p>
-      <p className="text-xs text-ink-600 mt-1">{districtWithPin || '-'}</p>
-      <p className="text-xs text-ink-500 mt-1">Ph: {label.contact_number || '-'}</p>
-      <div className="absolute right-1.5 bottom-1.5 bg-black text-white text-[10px] leading-none px-1.5 py-1 rounded-sm font-mono">
-        {serialNo}
+<div className="relative rounded-lg border border-[#aeb9c8] bg-[#e7edf4] p-1 text-left text-[#23394f] min-h-[170px] print:rounded-none print:border-black flex flex-col justify-between"  // ✅ flex-col + justify-between
+  style={{ breakInside: 'avoid', pageBreakInside: 'avoid' }}
+>
+  <div className="flex-1">  {/* ✅ Content wrapper */}
+    <p className="absolute right-2 top-1 text-sm font-semibold text-[#1d3146]">{serialNo}</p>
+
+    {label.barcode && (
+      <div className="mb-2 mx-auto w-fit bg-[#f2f2f1] px-2 pt-1.5 pb-1 flex items-center justify-center">
+        <BarcodeDisplay value={label.barcode} height={25} fontSize={10} width={1.5} />
       </div>
-    </div>
+    )}
+
+    <p className="text-[13px] font-semibold leading-tight">{label.teacher_name || '-'}</p>
+    <p className="mt-0.5 text-[10px] leading-snug whitespace-pre-line">{label.teacher_address || '-'}</p>
+    <p className="mt-0.5 text-[10px]">{districtWithPin || '-'}</p>
+    <p className="mt-0.5 text-[12px] font-semibold">Ph: {label.contact_number || '-'}</p>
+  </div>
+
+  {/* ✅ Subject box sticks to bottom */}
+  <div className="border border-[#99a6b7] bg-[#e9edf2] px-2 py-0.5 text-[13px] font-semibold leading-5 text-[#1f3650] mt-auto">
+    {subjectLine || '-'}
+  </div>
+</div>
+
   );
 }
+
 
 function ReportsContent() {
   const searchParams = useSearchParams();
@@ -305,7 +317,6 @@ function ReportsContent() {
           {data.map((r: any) => (
             <div key={r.id} className="border border-ink-200 rounded-lg p-3">
               <p className="font-semibold text-sm text-ink-900">{r.school_name}</p>
-              <p className="text-xs text-ink-500 mt-1 leading-snug">{r.full_address}</p>
               <p className="text-xs text-ink-500 mt-1">Ph: {r.contact_number}</p>
             </div>
           ))}
