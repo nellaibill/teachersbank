@@ -136,41 +136,6 @@ function FollowupsContent() {
       )}
 
       {/* Filters */}
-      <div className="card p-4 flex gap-3 flex-wrap">
-        <div className="flex items-center gap-2">
-          <Clock size={14} className="text-ink-400" />
-          <input type="date" className="form-input py-1.5 text-sm w-40" value={filterDate}
-            onChange={e => { setFilterDate(e.target.value); setPage(1); }} />
-        </div>
-        <select className="form-select py-1.5 text-sm w-36" value={filterStatus}
-          onChange={e => { setFilterStatus(e.target.value); setPage(1); }}>
-          <option value="">All Status</option>
-          <option>Pending</option>
-          <option>Informed</option>
-          <option>Completed</option>
-          <option>No Answer</option>
-        </select>
-        <select className="form-select py-1.5 text-sm w-32" value={filterLevel}
-          onChange={e => { setFilterLevel(e.target.value); setPage(1); }}>
-          <option value="">All Levels</option>
-          {[1,2,3,4].map(l => <option key={l} value={l}>Level {l}</option>)}
-        </select>
-        <div className="flex gap-2 ml-auto">
-          <button onClick={() => { setFilterDate(today()); setFilterStatus('Pending'); setPage(1); }}
-            className="btn-secondary btn btn-sm">
-            <Clock size={13} /> Today
-          </button>
-          {(filterDate || filterStatus || filterLevel) && (
-            <button onClick={() => { setFilterDate(''); setFilterStatus(''); setFilterLevel(''); setPage(1); }}
-              className="btn-ghost btn btn-sm">
-              <X size={13} /> Clear
-            </button>
-          )}
-          <button onClick={load} className="btn-secondary btn btn-icon btn-sm">
-            <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
-          </button>
-        </div>
-      </div>
 
       {/* List */}
       <div className="card p-0 overflow-hidden">

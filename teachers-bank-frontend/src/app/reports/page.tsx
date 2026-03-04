@@ -10,9 +10,7 @@ import EmptyState from '@/components/ui/EmptyState';
 import toast from 'react-hot-toast';
 
 const REPORT_TYPES = [
-   { id: 'consolidated',   label: 'Consolidated',   desc: 'All teachers with dispatch & followup summary' },
   { id: 'label',          label: 'Mailing Labels',  desc: 'Print-ready address labels with barcodes' },
-  { id: 'dispatch',       label: 'Dispatch Report', desc: 'Dispatch history with filters' },
   { id: 'school_address', label: 'School Address',  desc: 'School address labels for mailing' },
 ];
 
@@ -26,28 +24,30 @@ function LabelCard({ label, serialNo }: { label: any; serialNo: number }) {
     .join('-');
 
   return (
-    <div
-      className="relative rounded-lg border border-[#aeb9c8] bg-[#e7edf4] p-3 text-left text-[#23394f] min-h-[170px] print:rounded-none print:border-black"
-      style={{ breakInside: 'avoid', pageBreakInside: 'avoid' }}
-    >
-      <p className="absolute right-2 top-1 text-sm font-semibold text-[#1d3146]">{serialNo}</p>
+<div className="relative rounded-lg border border-[#aeb9c8] bg-[#e7edf4] p-1 text-left text-[#23394f] min-h-[170px] print:rounded-none print:border-black flex flex-col justify-between"  // ✅ flex-col + justify-between
+  style={{ breakInside: 'avoid', pageBreakInside: 'avoid' }}
+>
+  <div className="flex-1">  {/* ✅ Content wrapper */}
+    <p className="absolute right-2 top-1 text-sm font-semibold text-[#1d3146]">{serialNo}</p>
 
-      {label.barcode && (
-        <div className="mb-2 inline-block bg-[#f2f2f1] px-2 pt-1.5 pb-1">
-          <BarcodeDisplay value={label.barcode} height={30} fontSize={7} width={1.1} />
-        </div>
-      )}
-
-  
-      <p className="text-[13px] font-semibold leading-tight">{label.teacher_name || '-'}</p>
-      <p className="mt-0.5 text-[10px] leading-snug whitespace-pre-line">{label.teacher_address || '-'}</p>
-      <p className="mt-0.5 text-[10px]">{districtWithPin || '-'}</p>
-      <p className="mt-0.5 text-[12px] font-semibold">Ph: {label.contact_number || '-'}</p>
-          <div className="mb-1.5 border border-[#99a6b7] bg-[#e9edf2] px-2 py-0.5 text-[13px] font-semibold leading-5 text-[#1f3650]">
-        {subjectLine || '-'}
+    {label.barcode && (
+      <div className="mb-2 mx-auto w-fit bg-[#f2f2f1] px-2 pt-1.5 pb-1 flex items-center justify-center">
+        <BarcodeDisplay value={label.barcode} height={25} fontSize={10} width={1.5} />
       </div>
+    )}
 
-    </div>
+    <p className="text-[13px] font-semibold leading-tight">{label.teacher_name || '-'}</p>
+    <p className="mt-0.5 text-[10px] leading-snug whitespace-pre-line">{label.teacher_address || '-'}</p>
+    <p className="mt-0.5 text-[10px]">{districtWithPin || '-'}</p>
+    <p className="mt-0.5 text-[12px] font-semibold">Ph: {label.contact_number || '-'}</p>
+  </div>
+
+  {/* ✅ Subject box sticks to bottom */}
+  <div className="border border-[#99a6b7] bg-[#e9edf2] px-2 py-0.5 text-[13px] font-semibold leading-5 text-[#1f3650] mt-auto">
+    {subjectLine || '-'}
+  </div>
+</div>
+
   );
 }
 
@@ -240,8 +240,7 @@ function ReportsContent() {
           {data.map((r: any) => (
             <div key={r.id} className="border border-ink-200 rounded-lg p-3">
               <p className="font-semibold text-sm text-ink-900">{r.school_name}</p>
-              <p className="text-xs text-ink-500 mt-1 leading-snug">{r.full_address}</p>
-              <p className="text-xs text-ink-500 mt-1">Ph: {r.contact_number}</p>
+              <p className="font-semibold text-sm text-ink-900 mt-1">Ph: {r.contact_number}</p>
             </div>
           ))}
         </div>

@@ -22,7 +22,7 @@ export default function BarcodeDisplay({ value, width = 2, height = 60, fontSize
           width,
           height,
           fontSize,
-          margin: 8,
+          margin: 2,
           displayValue: true,
           textMargin: 4,
           font: 'DM Mono, monospace',
