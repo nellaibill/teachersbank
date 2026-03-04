@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useState, useCallback, Suspense } from 'react';
+import { useEffect, useState, useCallback, useMemo, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { Printer, RefreshCw, Filter, X, FileText } from 'lucide-react';
 import { reportsApi } from '@/lib/api';
@@ -87,6 +87,63 @@ function ReportsContent() {
   const labelPages = reportType === 'label'
     ? Array.from({ length: Math.ceil(data.length / 9) }, (_, i) => data.slice(i * 9, i * 9 + 9))
     : [];
+  const labelSummaryRows = useMemo(() => {
+    if (reportType !== 'label') return [];
+
+    const splitCsv = (value: any) =>
+      String(value || '')
+        .split(',')
+        .map(v => v.trim())
+        .filter(Boolean);
+
+    const grouped = new Map<string, {
+      district: string;
+      districtCode: string;
+      subject: string;
+      medium: string;
+      stdQty: Record<string, number>;
+    }>();
+
+    for (const row of data) {
+      const districtCode = String(row.dt_code || '').trim();
+      const district = DISTRICTS[districtCode] || districtCode || '-';
+      const subjects = splitCsv(row.sub_code);
+      const mediums = splitCsv(row.medium);
+      const standards = splitCsv(row.std).filter((s: string) => STANDARDS.includes(s));
+
+      const subjectList = subjects.length ? subjects : ['-'];
+      const mediumList = mediums.length ? mediums : ['-'];
+
+      for (const subject of subjectList) {
+        for (const medium of mediumList) {
+          const key = `${districtCode}|${subject}|${medium}`;
+
+          if (!grouped.has(key)) {
+            grouped.set(key, {
+              district,
+              districtCode: districtCode || '-',
+              subject,
+              medium,
+              stdQty: STANDARDS.reduce((acc, std) => ({ ...acc, [std]: 0 }), {} as Record<string, number>),
+            });
+          }
+
+          if (standards.length > 0) {
+            const target = grouped.get(key)!;
+            for (const std of standards) {
+              target.stdQty[std] += 1;
+            }
+          }
+        }
+      }
+    }
+
+    return Array.from(grouped.values()).sort((a, b) => {
+      if (a.district !== b.district) return a.district.localeCompare(b.district);
+      if (a.subject !== b.subject) return a.subject.localeCompare(b.subject);
+      return a.medium.localeCompare(b.medium);
+    });
+  }, [data, reportType]);
 
   return (
     <div className="space-y-5 max-w-7xl">
@@ -210,24 +267,67 @@ function ReportsContent() {
       ) : reportType === 'label' ? (
         // 3x3 label pages (9 records per printed page)
         <div className="print:p-0 space-y-4 print:space-y-0">
-          {labelPages.map((page, pageIndex) => (
+          <div className="space-y-4 print:space-y-0">
+            {labelPages.map((page, pageIndex) => (
+              <div
+                key={pageIndex}
+                className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 print:grid-cols-3 print:gap-2"
+                style={{
+                  pageBreakAfter: pageIndex < labelPages.length - 1 ? 'always' : 'auto',
+                  paddingTop: '30px',
+                }}
+              >
+                {page.map((label: any, itemIndex: number) => (
+                  <LabelCard
+                    key={`${label.id}-${pageIndex}-${itemIndex}`}
+                    label={label}
+                    serialNo={pageIndex * 9 + itemIndex + 1}
+                  />
+                ))}
+              </div>
+            ))}
+          </div>
+
+          {labelSummaryRows.length > 0 && (
             <div
-              key={pageIndex}
-              className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 print:grid-cols-3 print:gap-2"
-              style={{
-                pageBreakAfter: pageIndex < labelPages.length - 1 ? 'always' : 'auto',
-                paddingTop: '30px',
-              }}
+              className="overflow-x-auto rounded-lg border-2 border-black bg-[#e9e9e9] print:rounded-none"
+              style={{ pageBreakBefore: 'always' }}
             >
-              {page.map((label: any, itemIndex: number) => (
-                <LabelCard
-                  key={`${label.id}-${pageIndex}-${itemIndex}`}
-                  label={label}
-                  serialNo={pageIndex * 9 + itemIndex + 1}
-                />
-              ))}
+              <table className="w-full border-collapse text-center text-sm text-black">
+                <thead>
+                  <tr>
+                    <th rowSpan={2} className="border-2 border-black px-3 py-3 font-semibold whitespace-nowrap">Sl. No</th>
+                    <th rowSpan={2} className="border-2 border-black px-4 py-3 font-semibold whitespace-nowrap">District</th>
+                    <th rowSpan={2} className="border-2 border-black px-4 py-3 font-semibold whitespace-nowrap">Subject</th>
+                    <th rowSpan={2} className="border-2 border-black px-4 py-3 font-semibold whitespace-nowrap">Medium</th>
+                    <th colSpan={STANDARDS.length} className="border-2 border-black px-4 py-3 font-semibold">
+                      Required Books Quantity Standard Wise
+                    </th>
+                  </tr>
+                  <tr>
+                    {STANDARDS.map(std => (
+                      <th key={std} className="border-2 border-black px-4 py-3 font-semibold">{std}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {labelSummaryRows.map((row, idx) => (
+                    <tr key={`${row.districtCode}-${row.subject}-${row.medium}`}>
+                      <td className="border-2 border-black px-3 py-3">{idx + 1}</td>
+                      <td className="border-2 border-black px-4 py-3 text-left">{row.district}</td>
+                      <td className="border-2 border-black px-4 py-3">{SUBJECTS[row.subject] || row.subject}</td>
+                      <td className="border-2 border-black px-4 py-3">{row.medium}</td>
+                      {STANDARDS.map(std => (
+                        <td key={std} className="border-2 border-black px-4 py-3">
+                          {row.stdQty[std] > 0 ? row.stdQty[std] : ''}
+                        </td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
-          ))}
+          )}
         </div>
       ) : reportType === 'consolidated' ? (
         <div className="card p-0 overflow-hidden">
