@@ -10,7 +10,7 @@ import EmptyState from '@/components/ui/EmptyState';
 import toast from 'react-hot-toast';
 
 const REPORT_TYPES = [
-  { id: 'consolidated',   label: 'Consolidated',   desc: 'All teachers with dispatch & followup summary' },
+   { id: 'consolidated',   label: 'Consolidated',   desc: 'All teachers with dispatch & followup summary' },
   { id: 'label',          label: 'Mailing Labels',  desc: 'Print-ready address labels with barcodes' },
   { id: 'dispatch',       label: 'Dispatch Report', desc: 'Dispatch history with filters' },
   { id: 'school_address', label: 'School Address',  desc: 'School address labels for mailing' },
@@ -20,24 +20,33 @@ const REPORT_TYPES = [
 function LabelCard({ label, serialNo }: { label: any; serialNo: number }) {
   const districtName = label.dt_code ? (DISTRICTS[label.dt_code] || label.dt_code) : '';
   const districtWithPin = [districtName, label.pincode].filter(Boolean).join(' - ');
+  const subjectLine = [label.dt_code, label.sub_code, label.std, label.medium]
+    .map((v: string | undefined) => (v || '').trim())
+    .filter(Boolean)
+    .join('-');
 
   return (
     <div
-      className="relative border-2 border-ink-200 rounded-lg p-3 text-left print:border print:border-black print:rounded-none min-h-[170px]"
+      className="relative rounded-lg border border-[#aeb9c8] bg-[#e7edf4] p-3 text-left text-[#23394f] min-h-[170px] print:rounded-none print:border-black"
       style={{ breakInside: 'avoid', pageBreakInside: 'avoid' }}
     >
+      <p className="absolute right-2 top-1 text-sm font-semibold text-[#1d3146]">{serialNo}</p>
+
       {label.barcode && (
-        <div className="mb-2">
-          <BarcodeDisplay value={label.barcode} height={34} fontSize={8} width={1.2} />
+        <div className="mb-2 inline-block bg-[#f2f2f1] px-2 pt-1.5 pb-1">
+          <BarcodeDisplay value={label.barcode} height={30} fontSize={7} width={1.1} />
         </div>
       )}
-      <p className="font-bold text-sm text-ink-900 leading-tight">{label.teacher_name}</p>
-      <p className="text-xs text-ink-600 mt-1 leading-snug whitespace-pre-line">{label.teacher_address || '-'}</p>
-      <p className="text-xs text-ink-600 mt-1">{districtWithPin || '-'}</p>
-      <p className="text-xs text-ink-500 mt-1">Ph: {label.contact_number || '-'}</p>
-      <div className="absolute right-1.5 bottom-1.5 bg-black text-white text-[10px] leading-none px-1.5 py-1 rounded-sm font-mono">
-        {serialNo}
+
+  
+      <p className="text-[13px] font-semibold leading-tight">{label.teacher_name || '-'}</p>
+      <p className="mt-0.5 text-[10px] leading-snug whitespace-pre-line">{label.teacher_address || '-'}</p>
+      <p className="mt-0.5 text-[10px]">{districtWithPin || '-'}</p>
+      <p className="mt-0.5 text-[12px] font-semibold">Ph: {label.contact_number || '-'}</p>
+          <div className="mb-1.5 border border-[#99a6b7] bg-[#e9edf2] px-2 py-0.5 text-[13px] font-semibold leading-5 text-[#1f3650]">
+        {subjectLine || '-'}
       </div>
+
     </div>
   );
 }
@@ -115,81 +124,7 @@ function ReportsContent() {
       </div>
 
       {/* Filters */}
-      <div className="card p-4 space-y-3 no-print">
-        <p className="text-xs font-semibold text-ink-500 uppercase tracking-wide flex items-center gap-1.5">
-          <Filter size={12} /> Filters
-        </p>
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-          <div>
-            <label className="form-label">District</label>
-            <select className="form-select" value={filters.dt_code} onChange={e => setFilter('dt_code', e.target.value)}>
-              <option value="">All</option>
-              {Object.entries(DISTRICTS).sort((a,b) => a[1].localeCompare(b[1])).map(([code, name]) => (
-                <option key={code} value={code}>{name} ({code})</option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className="form-label">Subject</label>
-            <select className="form-select" value={filters.sub_code} onChange={e => setFilter('sub_code', e.target.value)}>
-              <option value="">All</option>
-              {Object.entries(SUBJECTS).map(([code, name]) => (
-                <option key={code} value={code}>{name}</option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className="form-label">Standard</label>
-            <select className="form-select" value={filters.std} onChange={e => setFilter('std', e.target.value)}>
-              <option value="">All</option>
-              {STANDARDS.map(s => <option key={s} value={s}>Std {s}</option>)}
-            </select>
-          </div>
-          <div>
-            <label className="form-label">Medium</label>
-            <select className="form-select" value={filters.medium} onChange={e => setFilter('medium', e.target.value)}>
-              <option value="">All</option>
-              {Object.entries(MEDIUMS).map(([code, name]) => (
-                <option key={code} value={code}>{name}</option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className="form-label">School Type</label>
-            <select className="form-select" value={filters.school_type} onChange={e => setFilter('school_type', e.target.value)}>
-              <option value="">All</option>
-              {SCHOOL_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
-            </select>
-          </div>
-          {(reportType === 'dispatch') && (
-            <div>
-              <label className="form-label">Status</label>
-              <select className="form-select" value={filters.status} onChange={e => setFilter('status', e.target.value)}>
-                <option value="">All</option>
-                <option>Dispatched</option><option>Delivered</option><option>Returned</option>
-              </select>
-            </div>
-          )}
-          {['dispatch'].includes(reportType) && (
-            <>
-              <div>
-                <label className="form-label">From Date</label>
-                <input type="date" className="form-input" value={filters.from_date} onChange={e => setFilter('from_date', e.target.value)} />
-              </div>
-              <div>
-                <label className="form-label">To Date</label>
-                <input type="date" className="form-input" value={filters.to_date} onChange={e => setFilter('to_date', e.target.value)} />
-              </div>
-            </>
-          )}
-        </div>
-        {hasFilters && (
-          <button onClick={clearFilters} className="btn-ghost btn btn-sm">
-            <X size={13} /> Clear all filters
-          </button>
-        )}
-      </div>
-
+    
       {/* Results */}
       {loading ? (
         <div className="card p-8 space-y-3">{Array(5).fill(0).map((_, i) => <div key={i} className="h-12 skeleton" />)}</div>
