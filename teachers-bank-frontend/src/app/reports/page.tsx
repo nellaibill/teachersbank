@@ -38,14 +38,14 @@ function LabelCard({ label, serialNo }: { label: any; serialNo: number }) {
       </div>
     )}
 
-    <p className="text-[13px] font-semibold leading-tight">{label.teacher_name || '-'}</p>
-    <p className="mt-0.5 text-[10px] leading-snug whitespace-pre-line">{label.teacher_address || '-'}</p>
-    <p className="mt-0.5 text-[10px]">{districtWithPin || '-'}</p>
-    <p className="mt-0.5 text-[12px] font-semibold">Ph: {label.contact_number || '-'}</p>
+    <p className="text-[13px] px-5 font-semibold leading-tight">{label.teacher_name || '-'}</p>
+    <p className="mt-0.5 px-5 text-[10px] leading-snug whitespace-pre-line">{label.teacher_address || '-'}</p>
+    <p className="mt-0.5 px-5 text-[10px]">{districtWithPin || '-'}</p>
+    <p className="mt-0.5 px-5 text-[12px] font-semibold">Ph: {label.contact_number || '-'}</p>
   </div>
 
   {/* ✅ Subject box sticks to bottom */}
-  <div className="border border-[#99a6b7] bg-[#e9edf2] px-2 py-0.5 text-[13px] font-semibold leading-5 text-[#1f3650] mt-auto">
+  <div className="border px-5 border-[#99a6b7] bg-[#e9edf2] px-2 py-0.5 text-[13px] font-semibold leading-5 text-[#1f3650] mt-auto">
     {subjectLine || '-'}
   </div>
 </div>
