@@ -19,7 +19,7 @@ const REPORT_TYPES = [
 // ── Label card for printing ───────────────────────────────────────────────────
 function LabelCard({ label, serialNo }: { label: any; serialNo: number }) {
   const districtName = label.dt_code ? (DISTRICTS[label.dt_code] || label.dt_code) : '';
-  const districtWithPin = [districtName, label.pincode].filter(Boolean).join(' - ');
+  const districtWithPin = ["", label.pincode].filter(Boolean).join(' - ');
   const subjectLine = [label.dt_code, label.sub_code, label.std, label.medium]
     .map((v: string | undefined) => (v || '').trim())
     .filter(Boolean)
@@ -39,8 +39,7 @@ function LabelCard({ label, serialNo }: { label: any; serialNo: number }) {
     )}
 
     <p className="text-[13px] px-5 font-semibold leading-tight">{label.teacher_name || '-'}</p>
-    <p className="mt-0.5 px-5 text-[10px] leading-snug whitespace-pre-line">{label.teacher_address || '-'}</p>
-    <p className="mt-0.5 px-5 text-[10px]">{districtWithPin || '-'}</p>
+    <p className="mt-0.5 px-5 text-[10px] leading-snug whitespace-pre-line">{label.teacher_address || '-'} -  {districtWithPin}</p>
     <p className="mt-0.5 px-5 text-[12px] font-semibold">Ph: {label.contact_number || '-'}</p>
   </div>
 
