@@ -15,6 +15,7 @@ const NAV = [
   { href: '/followups', icon: Bell,      label: 'Follow-ups' },
   { href: '/reports',   icon: BarChart2, label: 'Reports' },
 ];
+const OPERATOR_NAV = ['/dispatch'];
 
 function Sidebar({ open, onClose }: { open: boolean; onClose: () => void }) {
   const pathname = usePathname();
@@ -45,7 +46,9 @@ function Sidebar({ open, onClose }: { open: boolean; onClose: () => void }) {
 
       {/* Nav */}
       <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
-        {NAV.map(({ href, icon: Icon, label }) => {
+        {NAV
+          .filter(({ href }) => isAdmin || OPERATOR_NAV.includes(href))
+          .map(({ href, icon: Icon, label }) => {
           const active = href === '/' ? pathname === '/' : pathname.startsWith(href);
           return (
             <Link key={href} href={href}

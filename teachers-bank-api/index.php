@@ -39,6 +39,17 @@ if (!$id && !empty($_GET['id'])) {
     $id = (int)$_GET['id'];
 }
 
+// Enforce role-based access before routing.
+// Operators can only access dispatch routes (plus auth endpoints such as logout).
+$protectedResources = ['users', 'teachers', 'dispatch', 'followups', 'reports'];
+if (in_array($resource, $protectedResources, true)) {
+    $authUser = requireAuth();
+    if (($authUser['role'] ?? '') === 'operator' && $resource !== 'dispatch') {
+        sendError('Forbidden � operators can only access dispatch and logout routes', 403);
+    }
+}
+
+
 // ── Route ─────────────────────────────────────────────────────────────────────
 switch ($resource) {
 

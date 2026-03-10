@@ -108,7 +108,7 @@ function UserFormModal({ user, onClose, onSaved }: { user?: UserRecord | null; o
           <div className={`p-3 rounded-lg text-xs ${form.role === 'admin' ? 'bg-brand-50 text-brand-700' : 'bg-ink-50 text-ink-600'}`}>
             {form.role === 'admin'
               ? '🔑 Admin — full access including user management and delete operations'
-              : '👤 Operator — can view, add, and edit records but cannot delete or manage users'}
+              : '👤 Operator - can access dispatch and logout only'}
           </div>
 
           <div className="flex gap-3 pt-2 border-t border-ink-100">
@@ -185,7 +185,7 @@ export default function UsersPage() {
           <Shield size={13} className="text-brand-600" /> <strong>Admin</strong> — full access
         </div>
         <div className="flex items-center gap-2 text-xs text-ink-500 bg-white rounded-lg px-3 py-2 border border-ink-100">
-          <User size={13} className="text-ink-500" /> <strong>Operator</strong> — view, add, edit only
+          <User size={13} className="text-ink-500" /> <strong>Operator</strong> - dispatch and logout only
         </div>
       </div>
 
@@ -263,3 +263,4 @@ export default function UsersPage() {
     </div>
   );
 }
+

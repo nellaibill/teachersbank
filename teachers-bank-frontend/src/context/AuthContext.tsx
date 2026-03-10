@@ -21,6 +21,7 @@ const AuthContext = createContext<AuthContextType | null>(null);
 
 const PHP_BASE = 'https://iiplrgscbse.com/teachers-bank-api/index.php';
 const PUBLIC_PATHS = ['/login'];
+const OPERATOR_ALLOWED_PATHS = ['/dispatch'];
 const TOKEN_KEY = 'tb_jwt';
 
 // ── Token helpers — sessionStorage so it clears on tab close ─────────────────
@@ -71,8 +72,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (loading) return;
     const isPublic = PUBLIC_PATHS.some(p => pathname.startsWith(p));
-    if (!user && !isPublic) router.replace('/login');
-    else if (user && pathname === '/login') router.replace('/');
+    const isOperatorAllowedPath = OPERATOR_ALLOWED_PATHS.some(p => pathname.startsWith(p));
+
+    if (!user && !isPublic) {
+      router.replace('/login');
+      return;
+    }
+
+    if (user && pathname === '/login') {
+      router.replace(user.role === 'operator' ? '/dispatch' : '/');
+      return;
+    }
+
+    if (user?.role === 'operator' && !isPublic && !isOperatorAllowedPath) {
+      router.replace('/dispatch');
+    }
   }, [user, loading, pathname, router]);
 
   async function login(email: string, password: string) {
@@ -87,7 +101,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     saveToken(json.data.token);
     setUser(json.data.user);
-    router.replace('/');
+    router.replace(json.data.user.role === 'operator' ? '/dispatch' : '/');
   }
 
   function logout() {
