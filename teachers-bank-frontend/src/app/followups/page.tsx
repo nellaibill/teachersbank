@@ -3,7 +3,7 @@ import { useEffect, useState, useCallback, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import {
   Bell, CheckCircle2, X, Loader2, Phone,
-  RefreshCw, AlertCircle, Clock, Filter, MessageSquare
+  RefreshCw, AlertCircle, Clock, MessageSquare
 } from 'lucide-react';
 import { followupsApi } from '@/lib/api';
 import { Followup, Pagination as PaginationType, FOLLOWUP_STATUS_COLORS } from '@/lib/types';
@@ -13,21 +13,30 @@ import EmptyState from '@/components/ui/EmptyState';
 import toast from 'react-hot-toast';
 
 const MAX_FOLLOWUP_LEVEL = 10;
-const FOLLOWUP_LEVELS = Array.from({ length: MAX_FOLLOWUP_LEVEL }, (_, index) => index + 1);
 
 function getStatusLabel(status?: string) {
   return status === 'Informed' ? 'Processing' : (status || '-');
 }
 
-// ── Update followup modal ─────────────────────────────────────────────────────
+function getDateFilterValue(searchParams: ReturnType<typeof useSearchParams>) {
+  const dateParam = searchParams.get('date');
+  if (dateParam === 'today') return today();
+  return dateParam || today();
+}
+
+function getStatusFilterValue(searchParams: ReturnType<typeof useSearchParams>) {
+  const statusParam = searchParams.get('status');
+  return statusParam === 'Informed' ? 'Processing' : (statusParam || '');
+}
+
 function UpdateFollowupModal({ followup, onClose, onSaved }: { followup: Followup; onClose: () => void; onSaved: () => void }) {
-  const [status, setStatus]               = useState<Followup['status']>(followup.status === 'Informed' ? 'Processing' : followup.status);
-  const [remarks, setRemarks]             = useState(followup.remarks || '');
-  const [reminder_date, setReminderDate]  = useState(followup.reminder_date || '');
-  const [saving, setSaving]               = useState(false);
+  const [status, setStatus] = useState<Followup['status']>(followup.status === 'Informed' ? 'Processing' : followup.status);
+  const [remarks, setRemarks] = useState(followup.remarks || '');
+  const [reminder_date, setReminderDate] = useState(followup.reminder_date || '');
+  const [saving, setSaving] = useState(false);
   const shouldShowReminder = !['Completed', 'No Answer'].includes(status);
   const willCreateNext = ['Processing', 'Completed'].includes(status) && followup.followup_level < MAX_FOLLOWUP_LEVEL;
-  const previousLevels = (followup.level_history || []).filter(level => [1, 2].includes(level.followup_level));
+  const previousFollowups = followup.level_history || [];
 
   async function handleSave() {
     setSaving(true);
@@ -37,10 +46,15 @@ function UpdateFollowupModal({ followup, onClose, onSaved }: { followup: Followu
       const res = await followupsApi.update(followup.id, payload);
       toast.success('Followup updated');
       if (res.data?.next_followup) {
-        toast.success(`Level ${res.data.next_followup.followup_level} followup created automatically`, { duration: 4000 });
+        toast.success('Next follow-up created automatically', { duration: 4000 });
       }
-      onSaved(); onClose();
-    } catch (e: any) { toast.error(e.message); } finally { setSaving(false); }
+      onSaved();
+      onClose();
+    } catch (e: any) {
+      toast.error(e.message);
+    } finally {
+      setSaving(false);
+    }
   }
 
   return (
@@ -53,7 +67,7 @@ function UpdateFollowupModal({ followup, onClose, onSaved }: { followup: Followu
         <div className="px-5 py-4 space-y-4">
           <div className="p-3 bg-ink-50 rounded-lg text-sm">
             <p className="font-medium text-ink-800">{followup.teacher_name}</p>
-            <p className="text-ink-500 text-xs">{followup.contact_number} · Level {followup.followup_level}</p>
+            <p className="text-ink-500 text-xs">{followup.contact_number}</p>
           </div>
           <div>
             <label className="form-label">Status</label>
@@ -66,31 +80,39 @@ function UpdateFollowupModal({ followup, onClose, onSaved }: { followup: Followu
           </div>
           <div>
             <label className="form-label">Remarks</label>
-            <textarea className="form-input resize-none" rows={3} value={remarks}
-              onChange={e => setRemarks(e.target.value)} placeholder="Call notes…" />
+            <textarea
+              className="form-input resize-none"
+              rows={3}
+              value={remarks}
+              onChange={e => setRemarks(e.target.value)}
+              placeholder="Call notes..."
+            />
           </div>
           {shouldShowReminder && (
             <div>
               <label className="form-label">Reschedule Reminder</label>
-              <input type="date" className="form-input" value={reminder_date}
-                onChange={e => setReminderDate(e.target.value)} />
+              <input
+                type="date"
+                className="form-input"
+                value={reminder_date}
+                onChange={e => setReminderDate(e.target.value)}
+              />
             </div>
           )}
           {willCreateNext && (
             <div className="p-3 bg-brand-50 border border-brand-200 rounded-lg flex items-start gap-2">
               <CheckCircle2 size={15} className="text-brand-600 mt-0.5 flex-shrink-0" />
               <p className="text-xs text-brand-700">
-                Marking as <strong>{getStatusLabel(status)}</strong> will auto-create a Level {followup.followup_level + 1} follow-up.
+                Marking as <strong>{getStatusLabel(status)}</strong> will auto-create the next follow-up.
               </p>
             </div>
           )}
-          {followup.followup_level >= 3 && previousLevels.length > 0 && (
+          {previousFollowups.length > 0 && (
             <div className="rounded-lg border border-ink-200 bg-ink-50 p-3 space-y-2">
-              <p className="text-xs font-semibold uppercase tracking-wide text-ink-500">Levels 1 and 2 Details</p>
-              {previousLevels.map(level => (
+              <p className="text-xs font-semibold uppercase tracking-wide text-ink-500">Earlier Follow-up Details</p>
+              {previousFollowups.map(level => (
                 <div key={level.id} className="rounded-md border border-ink-100 bg-white p-3 text-xs space-y-1">
                   <div className="flex items-center justify-between gap-3">
-                    <span className="font-semibold text-ink-800">Level {level.followup_level}</span>
                     <span className={`badge text-[11px] ${FOLLOWUP_STATUS_COLORS[level.status] || ''}`}>
                       {getStatusLabel(level.status)}
                     </span>
@@ -113,37 +135,44 @@ function UpdateFollowupModal({ followup, onClose, onSaved }: { followup: Followu
   );
 }
 
-// ── Level badge ───────────────────────────────────────────────────────────────
-const LEVEL_COLORS = ['', 'bg-brand-100 text-brand-700', 'bg-amber-100 text-amber-700', 'bg-orange-100 text-orange-700', 'bg-rose-100 text-rose-600'];
-
 function FollowupsContent() {
   const searchParams = useSearchParams();
-  const [followups, setFollowups]         = useState<Followup[]>([]);
-  const [pagination, setPagination]       = useState<PaginationType | null>(null);
-  const [loading, setLoading]             = useState(true);
-  const [page, setPage]                   = useState(1);
-  const [filterDate, setFilterDate]       = useState(searchParams.get('date') === 'today' ? today() : (searchParams.get('date') || ''));
-  const [filterToDate, setFilterToDate]   = useState(searchParams.get('to_date') || '');
-  const [filterStatus, setFilterStatus]   = useState(searchParams.get('status') === 'Informed' ? 'Processing' : (searchParams.get('status') || ''));
-  const [filterLevel, setFilterLevel]     = useState('');
-  const [updateTarget, setUpdateTarget]   = useState<Followup | null>(null);
+  const [followups, setFollowups] = useState<Followup[]>([]);
+  const [pagination, setPagination] = useState<PaginationType | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [page, setPage] = useState(1);
+  const [filterDate, setFilterDate] = useState(getDateFilterValue(searchParams));
+  const [filterToDate, setFilterToDate] = useState(searchParams.get('to_date') || '');
+  const [filterStatus, setFilterStatus] = useState(getStatusFilterValue(searchParams));
+  const [updateTarget, setUpdateTarget] = useState<Followup | null>(null);
+
+  useEffect(() => {
+    setFilterDate(getDateFilterValue(searchParams));
+    setFilterToDate(searchParams.get('to_date') || '');
+    setFilterStatus(getStatusFilterValue(searchParams));
+    setPage(1);
+  }, [searchParams]);
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
       const params: any = { page, limit: 20 };
-      if (filterDate)   params.date   = filterDate;
+      if (filterDate) params.date = filterDate;
       if (filterToDate) params.to_date = filterToDate;
       if (filterStatus) params.status = filterStatus;
-      if (filterLevel)  params.followup_level = filterLevel;
       const res = await followupsApi.list(params);
       setFollowups(res.data?.followups ?? []);
       setPagination(res.data?.pagination ?? null);
-    } catch (e: any) { toast.error(e.message); }
-    finally { setLoading(false); }
-  }, [page, filterDate, filterToDate, filterStatus, filterLevel]);
+    } catch (e: any) {
+      toast.error(e.message);
+    } finally {
+      setLoading(false);
+    }
+  }, [page, filterDate, filterToDate, filterStatus]);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    load();
+  }, [load]);
 
   const overdue = followups.filter(f => f.status === 'Pending' && isOverdue(f.reminder_date));
 
@@ -156,7 +185,6 @@ function FollowupsContent() {
         </p>
       </div>
 
-      {/* Overdue alert */}
       {!loading && overdue.length > 0 && (
         <div className="flex items-start gap-3 p-4 bg-rose-50 border border-rose-200 rounded-xl animate-slide-up">
           <AlertCircle size={18} className="text-rose-500 flex-shrink-0 mt-0.5" />
@@ -167,39 +195,48 @@ function FollowupsContent() {
         </div>
       )}
 
-      {/* Filters */}
       <div className="card p-4 flex gap-3 flex-wrap">
         <div className="flex items-center gap-2">
           <Clock size={14} className="text-ink-400" />
-          <input type="date" className="form-input py-1.5 text-sm w-40" value={filterDate}
-            onChange={e => { setFilterDate(e.target.value); setPage(1); }} />
+          <input
+            type="date"
+            className="form-input py-1.5 text-sm w-40"
+            value={filterDate}
+            onChange={e => { setFilterDate(e.target.value); setPage(1); }}
+          />
         </div>
         <div className="flex items-center gap-2">
           <Clock size={14} className="text-ink-400" />
-          <input type="date" className="form-input py-1.5 text-sm w-40" value={filterToDate}
-            onChange={e => { setFilterToDate(e.target.value); setPage(1); }} />
+          <input
+            type="date"
+            className="form-input py-1.5 text-sm w-40"
+            value={filterToDate}
+            onChange={e => { setFilterToDate(e.target.value); setPage(1); }}
+          />
         </div>
-        <select className="form-select py-1.5 text-sm w-36" value={filterStatus}
-          onChange={e => { setFilterStatus(e.target.value); setPage(1); }}>
+        <select
+          className="form-select py-1.5 text-sm w-36"
+          value={filterStatus}
+          onChange={e => { setFilterStatus(e.target.value); setPage(1); }}
+        >
           <option value="">All Status</option>
           <option>Pending</option>
           <option>Processing</option>
           <option>Completed</option>
           <option>No Answer</option>
         </select>
-        <select className="form-select py-1.5 text-sm w-32" value={filterLevel}
-          onChange={e => { setFilterLevel(e.target.value); setPage(1); }}>
-          <option value="">All Levels</option>
-          {FOLLOWUP_LEVELS.map(l => <option key={l} value={l}>Level {l}</option>)}
-        </select>
         <div className="flex gap-2 ml-auto">
-          <button onClick={() => { setFilterDate(today()); setFilterToDate(''); setFilterStatus('Pending'); setPage(1); }}
-            className="btn-secondary btn btn-sm">
+          <button
+            onClick={() => { setFilterDate(today()); setFilterToDate(''); setFilterStatus('Pending'); setPage(1); }}
+            className="btn-secondary btn btn-sm"
+          >
             <Clock size={13} /> Today
           </button>
-          {(filterDate || filterToDate || filterStatus || filterLevel) && (
-            <button onClick={() => { setFilterDate(''); setFilterToDate(''); setFilterStatus(''); setFilterLevel(''); setPage(1); }}
-              className="btn-ghost btn btn-sm">
+          {(filterDate || filterToDate || filterStatus) && (
+            <button
+              onClick={() => { setFilterDate(today()); setFilterToDate(''); setFilterStatus(''); setPage(1); }}
+              className="btn-ghost btn btn-sm"
+            >
               <X size={13} /> Clear
             </button>
           )}
@@ -209,13 +246,15 @@ function FollowupsContent() {
         </div>
       </div>
 
-      {/* List */}
       <div className="card p-0 overflow-hidden">
         {loading ? (
           <div className="p-6 space-y-3">{Array(6).fill(0).map((_, i) => <div key={i} className="h-16 skeleton" />)}</div>
         ) : followups.length === 0 ? (
-          <EmptyState icon={Bell} title="No follow-ups found"
-            description="Dispatch a parcel first — Level 1 follow-ups are created automatically" />
+          <EmptyState
+            icon={Bell}
+            title="No follow-ups found"
+            description="No follow-ups match the selected reminder date and status"
+          />
         ) : (
           <div className="overflow-x-auto">
             <table className="data-table">
@@ -225,7 +264,6 @@ function FollowupsContent() {
                   <th>Contact</th>
                   <th>Dispatch Date</th>
                   <th>Reminder Date</th>
-                  <th>Level</th>
                   <th>Status</th>
                   <th>Remarks</th>
                   <th className="text-right">Action</th>
@@ -233,32 +271,32 @@ function FollowupsContent() {
               </thead>
               <tbody>
                 {followups.map((f, idx) => {
-                  const overdue = f.status === 'Pending' && isOverdue(f.reminder_date);
+                  const overdueItem = f.status === 'Pending' && isOverdue(f.reminder_date);
                   const dueToday = isDueToday(f.reminder_date);
                   return (
-                    <tr key={f.id} className={`animate-fade-in ${overdue ? 'bg-rose-50/30' : dueToday ? 'bg-amber-50/30' : ''}`}
-                      style={{ animationDelay: `${idx * 25}ms` }}>
+                    <tr
+                      key={f.id}
+                      className={`animate-fade-in ${overdueItem ? 'bg-rose-50/30' : dueToday ? 'bg-amber-50/30' : ''}`}
+                      style={{ animationDelay: `${idx * 25}ms` }}
+                    >
                       <td>
                         <p className="font-medium text-ink-900 text-sm">{f.teacher_name}</p>
                         <p className="text-xs text-ink-400 truncate max-w-[150px]">{f.school_name}</p>
                       </td>
                       <td>
-                        <a href={`tel:${f.contact_number}`}
-                          className="flex items-center gap-1.5 text-sm text-ink-700 hover:text-brand-600">
+                        <a
+                          href={`tel:${f.contact_number}`}
+                          className="flex items-center gap-1.5 text-sm text-ink-700 hover:text-brand-600"
+                        >
                           <Phone size={12} /> {f.contact_number}
                         </a>
                       </td>
                       <td className="text-sm text-ink-500 whitespace-nowrap">{formatDate(f.dispatch_date)}</td>
                       <td className="whitespace-nowrap">
-                        <span className={`text-sm font-medium ${overdue ? 'text-rose-600' : dueToday ? 'text-amber-600' : 'text-ink-600'}`}>
+                        <span className={`text-sm font-medium ${overdueItem ? 'text-rose-600' : dueToday ? 'text-amber-600' : 'text-ink-600'}`}>
                           {formatDate(f.reminder_date)}
-                          {overdue && <span className="ml-1 text-xs">(overdue)</span>}
-                          {dueToday && !overdue && <span className="ml-1 text-xs">(today)</span>}
-                        </span>
-                      </td>
-                      <td>
-                        <span className={`badge text-xs ${LEVEL_COLORS[f.followup_level] || 'bg-ink-100 text-ink-600'}`}>
-                          Level {f.followup_level}
+                          {overdueItem && <span className="ml-1 text-xs">(overdue)</span>}
+                          {dueToday && !overdueItem && <span className="ml-1 text-xs">(today)</span>}
                         </span>
                       </td>
                       <td>
@@ -267,11 +305,10 @@ function FollowupsContent() {
                         </span>
                       </td>
                       <td className="max-w-[140px]">
-                        <p className="text-xs text-ink-500 truncate">{f.remarks || '—'}</p>
+                        <p className="text-xs text-ink-500 truncate">{f.remarks || '-'}</p>
                       </td>
                       <td className="text-right">
-                        <button onClick={() => setUpdateTarget(f)}
-                          className="btn-primary btn btn-sm">
+                        <button onClick={() => setUpdateTarget(f)} className="btn-primary btn btn-sm">
                           <MessageSquare size={13} /> Update
                         </button>
                       </td>
@@ -284,15 +321,23 @@ function FollowupsContent() {
         )}
         {pagination && pagination.total_pages > 1 && (
           <div className="px-4 pb-4">
-            <Pagination page={page} totalPages={pagination.total_pages}
-              total={pagination.total} limit={pagination.limit} onChange={setPage} />
+            <Pagination
+              page={page}
+              totalPages={pagination.total_pages}
+              total={pagination.total}
+              limit={pagination.limit}
+              onChange={setPage}
+            />
           </div>
         )}
       </div>
 
       {updateTarget && (
-        <UpdateFollowupModal followup={updateTarget}
-          onClose={() => setUpdateTarget(null)} onSaved={load} />
+        <UpdateFollowupModal
+          followup={updateTarget}
+          onClose={() => setUpdateTarget(null)}
+          onSaved={load}
+        />
       )}
     </div>
   );

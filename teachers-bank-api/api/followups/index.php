@@ -38,7 +38,11 @@ function listFollowups() {
     // Filter by today's reminders by default if ?date=today
     if (!empty($_GET['date'])) {
         $date = $_GET['date'] === 'today' ? date('Y-m-d') : $_GET['date'];
-        $where[]  = 'f.reminder_date = ?';
+        if (!empty($_GET['to_date']) || !empty($_GET['from_date'])) {
+            $where[] = 'f.reminder_date >= ?';
+        } else {
+            $where[] = 'f.reminder_date = ?';
+        }
         $params[] = $date;
         $types   .= 's';
     }

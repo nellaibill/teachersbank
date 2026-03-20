@@ -404,7 +404,7 @@ function ReportsContent() {
                             r.latest_followup_status === 'Completed' ? 'bg-emerald-100 text-emerald-700' :
                             ['Informed', 'Processing'].includes(r.latest_followup_status) ? 'bg-brand-100 text-brand-700' :
                             'bg-ink-100 text-ink-500'}`}>
-                            {getFollowupStatusLabel(r.latest_followup_status)} (L{r.latest_followup_level})
+                            {getFollowupStatusLabel(r.latest_followup_status)}
                           </span>
                         : <span className="text-ink-300 text-xs">—</span>}
                     </td>

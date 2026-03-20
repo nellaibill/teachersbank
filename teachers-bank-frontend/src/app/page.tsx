@@ -64,7 +64,7 @@ export default function Dashboard() {
   const statCards = [
     { icon: Users,    label: 'Total Teachers',    value: stats?.totalTeachers,    color: 'bg-brand-600',   href: '/teachers' },
     { icon: Package,  label: "Today's Dispatches", value: stats?.todayDispatches,  color: 'bg-emerald-600', href: '/dispatch' },
-    { icon: Bell,     label: 'Pending Follow-ups', value: stats?.pendingFollowups, color: 'bg-amber-500',   href: `/followups?date=${today()}&status=Pending` },
+    { icon: Bell,     label: 'Pending Follow-ups', value: stats?.pendingFollowups, color: 'bg-amber-500',   href: '/followups?date=today&status=Pending' },
     { icon: AlertCircle, label: 'Overdue Follow-ups', value: stats?.overdueFollowups, color: 'bg-rose-500', href: `/followups?status=Pending&to_date=${addDays(today(), -1)}` },
   ];
 
@@ -143,7 +143,7 @@ export default function Dashboard() {
                   </div>
                   <div className="text-right">
                     <span className="badge bg-amber-100 text-amber-700">
-                      Level {f.followup_level}
+                      {formatDate(f.reminder_date)}
                     </span>
                     <p className="text-xs text-ink-400 mt-0.5">{f.status}</p>
                   </div>
