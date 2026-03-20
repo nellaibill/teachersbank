@@ -49,7 +49,7 @@ export interface Followup {
   followup_level: number;
   reminder_date: string;
   remarks?: string;
-  status: 'Pending' | 'Informed' | 'Completed' | 'No Answer';
+  status: 'Pending' | 'Processing' | 'Completed' | 'No Answer' | 'Informed';
   created_at: string;
   updated_at: string;
   dispatch_date?: string;
@@ -61,6 +61,14 @@ export interface Followup {
   teacher_address?: string;
   pincode?: string;
   barcode?: string;
+  level_history?: Array<{
+    id: number;
+    followup_level: number;
+    reminder_date: string;
+    status: 'Pending' | 'Processing' | 'Completed' | 'No Answer' | 'Informed';
+    remarks?: string;
+    updated_at?: string;
+  }>;
 }
 
 export interface Pagination {
@@ -110,6 +118,7 @@ export const SCHOOL_TYPES = [
 
 export const FOLLOWUP_STATUS_COLORS: Record<string, string> = {
   Pending:     'bg-amber-100 text-amber-700',
+  Processing:  'bg-brand-100 text-brand-700',
   Informed:    'bg-brand-100 text-brand-700',
   Completed:   'bg-emerald-100 text-emerald-700',
   'No Answer': 'bg-ink-100 text-ink-500',

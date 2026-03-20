@@ -20,6 +20,7 @@ function listFollowups() {
     $where  = ['1=1'];
     $params = [];
     $types  = '';
+    $today  = date('Y-m-d');
 
     if (!empty($_GET['date'])) {
         $date     = $_GET['date'] === 'today' ? date('Y-m-d') : $_GET['date'];
@@ -28,9 +29,15 @@ function listFollowups() {
         $types   .= 's';
     }
     if (!empty($_GET['status'])) {
-        $where[]  = 'f.status = ?';
-        $params[] = $_GET['status'];
-        $types   .= 's';
+        if ($_GET['status'] === 'Processing') {
+            $where[]  = "(f.status = ? OR f.status = 'Informed')";
+            $params[] = 'Processing';
+            $types   .= 's';
+        } else {
+            $where[]  = 'f.status = ?';
+            $params[] = $_GET['status'];
+            $types   .= 's';
+        }
     }
     if (!empty($_GET['dispatch_id'])) {
         $where[]  = 'f.dispatch_id = ?';
@@ -50,6 +57,14 @@ function listFollowups() {
     if (!empty($_GET['to_date'])) {
         $where[]  = 'f.reminder_date <= ?';
         $params[] = $_GET['to_date'];
+        $types   .= 's';
+    }
+    if (!empty($_GET['overdue_only'])) {
+        $where[]  = 'f.status = ?';
+        $params[] = 'Pending';
+        $types   .= 's';
+        $where[]  = 'f.reminder_date < ?';
+        $params[] = $today;
         $types   .= 's';
     }
 
@@ -82,6 +97,8 @@ function listFollowups() {
     $followups = [];
     while ($row = $result->fetch_assoc()) $followups[] = $row;
 
+    attachLevelHistory($conn, $followups);
+
     $conn->close();
     sendSuccess([
         'followups'  => $followups,
@@ -108,8 +125,47 @@ function getFollowup($id) {
     $stmt->execute();
     $followup = $stmt->get_result()->fetch_assoc();
     if (!$followup) sendError('Followup not found', 404);
+    $rows = [$followup];
+    attachLevelHistory($conn, $rows);
+    $followup = $rows[0];
     $conn->close();
     sendSuccess($followup);
+}
+
+function attachLevelHistory($conn, array &$followups) {
+    if (empty($followups)) return;
+
+    $dispatchIds = [];
+    foreach ($followups as $row) {
+        $dispatchIds[(int)$row['dispatch_id']] = true;
+    }
+
+    $ids = array_keys($dispatchIds);
+    if (empty($ids)) return;
+
+    $placeholders = implode(',', array_fill(0, count($ids), '?'));
+    $types = str_repeat('i', count($ids));
+    $historyStmt = $conn->prepare("
+        SELECT id, dispatch_id, followup_level, reminder_date, status, remarks, updated_at
+        FROM followups
+        WHERE dispatch_id IN ($placeholders)
+          AND followup_level IN (1, 2)
+        ORDER BY dispatch_id ASC, followup_level ASC
+    ");
+    $historyStmt->bind_param($types, ...$ids);
+    $historyStmt->execute();
+    $historyResult = $historyStmt->get_result();
+
+    $historyMap = [];
+    while ($history = $historyResult->fetch_assoc()) {
+        $dispatchId = (int)$history['dispatch_id'];
+        if (!isset($historyMap[$dispatchId])) $historyMap[$dispatchId] = [];
+        $historyMap[$dispatchId][] = $history;
+    }
+
+    foreach ($followups as &$row) {
+        $row['level_history'] = $historyMap[(int)$row['dispatch_id']] ?? [];
+    }
 }
 
 function createFollowup() {
@@ -147,6 +203,10 @@ function updateFollowup($id) {
     $body = getRequestBody();
     $conn = getDBConnection();
 
+    if (isset($body['status']) && $body['status'] === 'Informed') {
+        $body['status'] = 'Processing';
+    }
+
     $chk = $conn->prepare("SELECT id, followup_level, dispatch_id FROM followups WHERE id = ?");
     $chk->bind_param('i', $id);
     $chk->execute();
@@ -168,10 +228,10 @@ function updateFollowup($id) {
     $stmt->bind_param($types, ...$params);
     if (!$stmt->execute()) sendError('Failed to update followup', 500);
 
-    // Auto-create next level if Informed/Completed and level < 4
+    // Auto-create next level if Processing/Completed and level < 10
     $nextFollowup = null;
-    if (isset($body['status']) && in_array($body['status'], ['Informed', 'Completed'])
-        && $current['followup_level'] < 4)
+    if (isset($body['status']) && in_array($body['status'], ['Processing', 'Completed'], true)
+        && $current['followup_level'] < 10)
     {
         $nextLevel = $current['followup_level'] + 1;
         $dispId    = $current['dispatch_id'];

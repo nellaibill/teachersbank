@@ -16,6 +16,41 @@ const REPORT_TYPES = [
   { id: 'school_address', label: 'School Address',  desc: 'School address labels for mailing' },
 ];
 
+function getFollowupStatusLabel(status?: string) {
+  return status === 'Informed' ? 'Processing' : (status || '-');
+}
+
+function ReportFilterHeader({ reportType, filters, total }: { reportType: string; filters: Record<string, string>; total: number }) {
+  const reportName = REPORT_TYPES.find(report => report.id === reportType)?.label || 'Report';
+  const summary = [
+    { label: 'District', value: filters.dt_code ? (DISTRICTS[filters.dt_code] || filters.dt_code) : 'All' },
+    { label: 'Subject', value: filters.sub_code ? (SUBJECTS[filters.sub_code] || filters.sub_code) : 'All' },
+    { label: 'STD', value: filters.std ? `Std ${filters.std}` : 'All' },
+    { label: 'Medium', value: filters.medium ? (MEDIUMS[filters.medium] || filters.medium) : 'All' },
+    { label: 'School Type', value: filters.school_type || 'All' },
+  ];
+
+  return (
+    <div className="rounded-xl border border-ink-200 bg-white p-4 print:rounded-none print:border-black">
+      <div className="flex items-start justify-between gap-4 flex-wrap">
+        <div>
+          <h2 className="text-lg font-semibold text-ink-900">{reportName}</h2>
+          <p className="text-xs text-ink-500">Generated on {new Date().toLocaleDateString('en-IN')}</p>
+        </div>
+        <p className="text-sm font-medium text-ink-600">Total Records: {total}</p>
+      </div>
+      <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-2 text-sm">
+        {summary.map(item => (
+          <div key={item.label} className="rounded-lg bg-ink-50 px-3 py-2">
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-ink-500">{item.label}</p>
+            <p className="mt-1 text-ink-800">{item.value}</p>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 // ── Label card for printing ───────────────────────────────────────────────────
 function LabelCard({ label, serialNo }: { label: any; serialNo: number }) {
   const districtName = label.dt_code ? (DISTRICTS[label.dt_code] || label.dt_code) : '';
@@ -266,6 +301,7 @@ function ReportsContent() {
       ) : reportType === 'label' ? (
         // 3x3 label pages (9 records per printed page)
         <div className="print:p-0 space-y-4 print:space-y-0">
+          <ReportFilterHeader reportType={reportType} filters={filters} total={data.length} />
           <div className="space-y-4 print:space-y-0">
             {labelPages.map((page, pageIndex) => (
               <div
@@ -329,8 +365,10 @@ function ReportsContent() {
           )}
         </div>
       ) : reportType === 'consolidated' ? (
-        <div className="card p-0 overflow-hidden">
-          <div className="overflow-x-auto">
+        <div className="space-y-4">
+          <ReportFilterHeader reportType={reportType} filters={filters} total={data.length} />
+          <div className="card p-0 overflow-hidden">
+            <div className="overflow-x-auto">
             <table className="data-table">
               <thead>
                 <tr>
@@ -364,9 +402,9 @@ function ReportsContent() {
                         ? <span className={`badge text-xs ${
                             r.latest_followup_status === 'Pending'   ? 'bg-amber-100 text-amber-700' :
                             r.latest_followup_status === 'Completed' ? 'bg-emerald-100 text-emerald-700' :
-                            r.latest_followup_status === 'Informed'  ? 'bg-brand-100 text-brand-700' :
+                            ['Informed', 'Processing'].includes(r.latest_followup_status) ? 'bg-brand-100 text-brand-700' :
                             'bg-ink-100 text-ink-500'}`}>
-                            {r.latest_followup_status} (L{r.latest_followup_level})
+                            {getFollowupStatusLabel(r.latest_followup_status)} (L{r.latest_followup_level})
                           </span>
                         : <span className="text-ink-300 text-xs">—</span>}
                     </td>
@@ -375,9 +413,12 @@ function ReportsContent() {
               </tbody>
             </table>
           </div>
+          </div>
         </div>
       ) : reportType === 'dispatch' ? (
-        <div className="card p-0 overflow-hidden">
+        <div className="space-y-4">
+          <ReportFilterHeader reportType={reportType} filters={filters} total={data.length} />
+          <div className="card p-0 overflow-hidden">
           <div className="overflow-x-auto">
             <table className="data-table">
               <thead>
@@ -401,24 +442,29 @@ function ReportsContent() {
                     </td>
                     <td>
                       {r.latest_followup
-                        ? <span className={`badge text-xs ${r.latest_followup === 'Pending' ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700'}`}>{r.latest_followup}</span>
+                        ? <span className={`badge text-xs ${r.latest_followup === 'Pending' ? 'bg-amber-100 text-amber-700' : ['Informed', 'Processing'].includes(r.latest_followup) ? 'bg-brand-100 text-brand-700' : 'bg-emerald-100 text-emerald-700'}`}>{getFollowupStatusLabel(r.latest_followup)}</span>
                         : '—'}
                     </td>
                   </tr>
                 ))}
               </tbody>
             </table>
+            </div>
           </div>
         </div>
       ) : (
         // School address
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 print:grid-cols-4">
-          {data.map((r: any) => (
-            <div key={r.id} className="border border-ink-200 rounded-lg p-3">
-              <p className="font-semibold text-sm text-ink-900">{r.school_name}</p>
-              <p className="text-xs text-ink-500 mt-1">Ph: {r.contact_number}</p>
-            </div>
-          ))}
+        <div className="space-y-4">
+          <ReportFilterHeader reportType={reportType} filters={filters} total={data.length} />
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 print:grid-cols-4">
+            {data.map((r: any) => (
+              <div key={r.id} className="border border-ink-200 rounded-lg p-3">
+                <p className="font-semibold text-sm text-ink-900">{r.school_name}</p>
+                <p className="text-xs text-ink-500 mt-1 whitespace-pre-line">{r.full_address || r.teacher_address || '-'}</p>
+                <p className="text-xs text-ink-500 mt-1">Ph: {r.contact_number}</p>
+              </div>
+            ))}
+          </div>
         </div>
       )}
     </div>
