@@ -75,20 +75,27 @@ function listFollowups() {
     $page     = max(1, (int)($_GET['page']  ?? 1));
     $limit    = max(1, min(100, (int)($_GET['limit'] ?? 20)));
     $offset   = ($page - 1) * $limit;
+    $baseJoin = "
+        FROM followups f
+        JOIN (
+            SELECT dispatch_id, MAX(id) AS latest_id
+            FROM followups
+            GROUP BY dispatch_id
+        ) latest ON latest.latest_id = f.id
+    ";
     $whereSQL = implode(' AND ', $where);
 
-    $stmt = $conn->prepare("SELECT COUNT(*) AS total FROM followups f WHERE $whereSQL");
+    $stmt = $conn->prepare("SELECT COUNT(*) AS total $baseJoin WHERE $whereSQL");
     if ($types) $stmt->bind_param($types, ...$params);
     $stmt->execute();
     $total = $stmt->get_result()->fetch_assoc()['total'];
 
-    // Updated: teacher_address + pincode instead of address_1/2/3
     $stmt2 = $conn->prepare("
         SELECT f.*, d.dispatch_date, d.pod_date, d.status AS dispatch_status,
                t.teacher_name, t.contact_number, t.school_name,
                t.teacher_address, t.pincode, t.barcode,
                t.dt_code, t.sub_code, t.medium, t.std
-        FROM followups f
+        $baseJoin
         JOIN dispatch d ON f.dispatch_id = d.id
         JOIN teachers t ON d.teacher_id = t.id
         WHERE $whereSQL
@@ -153,8 +160,7 @@ function attachLevelHistory($conn, array &$followups) {
         SELECT id, dispatch_id, followup_level, reminder_date, status, remarks, updated_at
         FROM followups
         WHERE dispatch_id IN ($placeholders)
-          AND followup_level IN (1, 2)
-        ORDER BY dispatch_id ASC, followup_level ASC
+        ORDER BY dispatch_id ASC, id DESC
     ");
     $historyStmt->bind_param($types, ...$ids);
     $historyStmt->execute();
@@ -168,7 +174,10 @@ function attachLevelHistory($conn, array &$followups) {
     }
 
     foreach ($followups as &$row) {
-        $row['level_history'] = $historyMap[(int)$row['dispatch_id']] ?? [];
+        $historyRows = $historyMap[(int)$row['dispatch_id']] ?? [];
+        $row['level_history'] = array_values(array_filter($historyRows, function ($historyRow) use ($row) {
+            return (int)$historyRow['id'] !== (int)$row['id'];
+        }));
     }
 }
 
@@ -211,51 +220,35 @@ function updateFollowup($id) {
         $body['status'] = 'Processing';
     }
 
-    $chk = $conn->prepare("SELECT id, followup_level, dispatch_id FROM followups WHERE id = ?");
+    $chk = $conn->prepare("SELECT id, followup_level, dispatch_id, reminder_date, remarks, status FROM followups WHERE id = ?");
     $chk->bind_param('i', $id);
     $chk->execute();
     $current = $chk->get_result()->fetch_assoc();
     if (!$current) sendError('Followup not found', 404);
-
-    $sets = []; $params = []; $types = '';
-    foreach (['status', 'remarks', 'reminder_date'] as $field) {
-        if (isset($body[$field])) {
-            $sets[]   = "$field = ?";
-            $params[] = $body[$field];
-            $types   .= 's';
-        }
+    if (!isset($body['status']) && !array_key_exists('remarks', $body) && !isset($body['reminder_date'])) {
+        sendError('No valid fields to update', 400);
     }
-    if (empty($sets)) sendError('No valid fields to update', 400);
 
-    $params[] = $id; $types .= 'i';
-    $stmt = $conn->prepare("UPDATE followups SET " . implode(', ', $sets) . " WHERE id = ?");
-    $stmt->bind_param($types, ...$params);
-    if (!$stmt->execute()) sendError('Failed to update followup', 500);
+    $status = $body['status'] ?? $current['status'];
+    $remarks = array_key_exists('remarks', $body) ? $body['remarks'] : $current['remarks'];
+    $reminderDate = $body['reminder_date'] ?? $current['reminder_date'];
+    $dispatchId = (int)$current['dispatch_id'];
 
-    // Auto-create next level if Processing/Completed and level < 10
-    $nextFollowup = null;
-    if (isset($body['status']) && in_array($body['status'], ['Processing', 'Completed'], true)
-        && $current['followup_level'] < 10)
-    {
-        $nextLevel = $current['followup_level'] + 1;
-        $dispId    = $current['dispatch_id'];
+    $levelStmt = $conn->prepare("SELECT COALESCE(MAX(followup_level), 0) AS max_level FROM followups WHERE dispatch_id = ?");
+    $levelStmt->bind_param('i', $dispatchId);
+    $levelStmt->execute();
+    $levelRow = $levelStmt->get_result()->fetch_assoc();
+    $nextLevel = ((int)($levelRow['max_level'] ?? 0)) + 1;
 
-        $dSel = $conn->prepare("SELECT dispatch_date FROM dispatch WHERE id = ?");
-        $dSel->bind_param('i', $dispId);
-        $dSel->execute();
-        $dRow         = $dSel->get_result()->fetch_assoc();
-        $reminderDate = date('Y-m-d', strtotime($dRow['dispatch_date'] . " +{$nextLevel}0 days"));
+    $insert = $conn->prepare("INSERT INTO followups (dispatch_id, followup_level, reminder_date, remarks, status) VALUES (?, ?, ?, ?, ?)");
+    $insert->bind_param('iisss', $dispatchId, $nextLevel, $reminderDate, $remarks, $status);
+    if (!$insert->execute()) sendError('Failed to create followup', 500);
 
-        $nxt = $conn->prepare("INSERT INTO followups (dispatch_id, followup_level, reminder_date, status) VALUES (?, ?, ?, 'Pending')");
-        $nxt->bind_param('iis', $dispId, $nextLevel, $reminderDate);
-        $nxt->execute();
-        $nxtId = $conn->insert_id;
-
-        $nxtSel = $conn->prepare("SELECT * FROM followups WHERE id = ?");
-        $nxtSel->bind_param('i', $nxtId);
-        $nxtSel->execute();
-        $nextFollowup = $nxtSel->get_result()->fetch_assoc();
-    }
+    $newId = $conn->insert_id;
+    $newSel = $conn->prepare("SELECT * FROM followups WHERE id = ?");
+    $newSel->bind_param('i', $newId);
+    $newSel->execute();
+    $nextFollowup = $newSel->get_result()->fetch_assoc();
 
     $conn->close();
     sendSuccess(['next_followup' => $nextFollowup], 'Followup updated successfully');

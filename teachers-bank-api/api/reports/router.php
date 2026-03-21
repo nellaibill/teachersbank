@@ -150,8 +150,45 @@ function dispatchReport() {
 
     $rows = [];
     while ($row = $result->fetch_assoc()) $rows[] = $row;
+    attachDispatchFollowupHistory($conn, $rows);
     $conn->close();
     sendSuccess(['report_type' => 'dispatch', 'total' => count($rows), 'records' => $rows]);
+}
+
+function attachDispatchFollowupHistory($conn, array &$rows) {
+    if (empty($rows)) return;
+
+    $dispatchIds = [];
+    foreach ($rows as $row) {
+        $dispatchIds[(int)$row['dispatch_id']] = true;
+    }
+
+    $ids = array_keys($dispatchIds);
+    if (empty($ids)) return;
+
+    $placeholders = implode(',', array_fill(0, count($ids), '?'));
+    $types = str_repeat('i', count($ids));
+    $stmt = $conn->prepare("
+        SELECT id, dispatch_id, followup_level, reminder_date, status, remarks, updated_at
+        FROM followups
+        WHERE dispatch_id IN ($placeholders)
+        ORDER BY dispatch_id ASC, id DESC
+    ");
+    $stmt->bind_param($types, ...$ids);
+    $stmt->execute();
+    $result = $stmt->get_result();
+
+    $historyMap = [];
+    while ($history = $result->fetch_assoc()) {
+        $dispatchId = (int)$history['dispatch_id'];
+        if (!isset($historyMap[$dispatchId])) $historyMap[$dispatchId] = [];
+        $historyMap[$dispatchId][] = $history;
+    }
+
+    foreach ($rows as &$row) {
+        $historyRows = $historyMap[(int)$row['dispatch_id']] ?? [];
+        $row['followup_history'] = $historyRows;
+    }
 }
 
 // ── School Address Report ─────────────────────────────────────────────────────

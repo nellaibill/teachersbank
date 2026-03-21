@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useState, useCallback, Suspense } from 'react';
+import { Fragment, useEffect, useState, useCallback, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import {
   Bell, CheckCircle2, X, Loader2, Phone,
@@ -11,8 +11,6 @@ import { formatDate, today, isOverdue, isDueToday } from '@/lib/utils';
 import Pagination from '@/components/ui/Pagination';
 import EmptyState from '@/components/ui/EmptyState';
 import toast from 'react-hot-toast';
-
-const MAX_FOLLOWUP_LEVEL = 10;
 
 function getStatusLabel(status?: string) {
   return status === 'Informed' ? 'Processing' : (status || '-');
@@ -35,7 +33,6 @@ function UpdateFollowupModal({ followup, onClose, onSaved }: { followup: Followu
   const [reminder_date, setReminderDate] = useState(followup.reminder_date || '');
   const [saving, setSaving] = useState(false);
   const shouldShowReminder = !['Completed', 'No Answer'].includes(status);
-  const willCreateNext = ['Processing', 'Completed'].includes(status) && followup.followup_level < MAX_FOLLOWUP_LEVEL;
   const previousFollowups = followup.level_history || [];
 
   async function handleSave() {
@@ -99,14 +96,12 @@ function UpdateFollowupModal({ followup, onClose, onSaved }: { followup: Followu
               />
             </div>
           )}
-          {willCreateNext && (
-            <div className="p-3 bg-brand-50 border border-brand-200 rounded-lg flex items-start gap-2">
-              <CheckCircle2 size={15} className="text-brand-600 mt-0.5 flex-shrink-0" />
-              <p className="text-xs text-brand-700">
-                Marking as <strong>{getStatusLabel(status)}</strong> will auto-create the next follow-up.
-              </p>
-            </div>
-          )}
+          <div className="p-3 bg-brand-50 border border-brand-200 rounded-lg flex items-start gap-2">
+            <CheckCircle2 size={15} className="text-brand-600 mt-0.5 flex-shrink-0" />
+            <p className="text-xs text-brand-700">
+              Saving this form will create a new follow-up entry for this dispatch and keep the previous entries in history.
+            </p>
+          </div>
           {previousFollowups.length > 0 && (
             <div className="rounded-lg border border-ink-200 bg-ink-50 p-3 space-y-2">
               <p className="text-xs font-semibold uppercase tracking-wide text-ink-500">Earlier Follow-up Details</p>
@@ -274,45 +269,66 @@ function FollowupsContent() {
                   const overdueItem = f.status === 'Pending' && isOverdue(f.reminder_date);
                   const dueToday = isDueToday(f.reminder_date);
                   return (
-                    <tr
-                      key={f.id}
-                      className={`animate-fade-in ${overdueItem ? 'bg-rose-50/30' : dueToday ? 'bg-amber-50/30' : ''}`}
-                      style={{ animationDelay: `${idx * 25}ms` }}
-                    >
-                      <td>
-                        <p className="font-medium text-ink-900 text-sm">{f.teacher_name}</p>
-                        <p className="text-xs text-ink-400 truncate max-w-[150px]">{f.school_name}</p>
-                      </td>
-                      <td>
-                        <a
-                          href={`tel:${f.contact_number}`}
-                          className="flex items-center gap-1.5 text-sm text-ink-700 hover:text-brand-600"
-                        >
-                          <Phone size={12} /> {f.contact_number}
-                        </a>
-                      </td>
-                      <td className="text-sm text-ink-500 whitespace-nowrap">{formatDate(f.dispatch_date)}</td>
-                      <td className="whitespace-nowrap">
-                        <span className={`text-sm font-medium ${overdueItem ? 'text-rose-600' : dueToday ? 'text-amber-600' : 'text-ink-600'}`}>
-                          {formatDate(f.reminder_date)}
-                          {overdueItem && <span className="ml-1 text-xs">(overdue)</span>}
-                          {dueToday && !overdueItem && <span className="ml-1 text-xs">(today)</span>}
-                        </span>
-                      </td>
-                      <td>
-                        <span className={`badge text-xs ${FOLLOWUP_STATUS_COLORS[f.status] || ''}`}>
-                          {getStatusLabel(f.status)}
-                        </span>
-                      </td>
-                      <td className="max-w-[140px]">
-                        <p className="text-xs text-ink-500 truncate">{f.remarks || '-'}</p>
-                      </td>
-                      <td className="text-right">
-                        <button onClick={() => setUpdateTarget(f)} className="btn-primary btn btn-sm">
-                          <MessageSquare size={13} /> Update
-                        </button>
-                      </td>
-                    </tr>
+                    <Fragment key={f.id}>
+                      <tr
+                        className={`animate-fade-in ${overdueItem ? 'bg-rose-50/30' : dueToday ? 'bg-amber-50/30' : ''}`}
+                        style={{ animationDelay: `${idx * 25}ms` }}
+                      >
+                        <td>
+                          <p className="font-medium text-ink-900 text-sm">{f.teacher_name}</p>
+                          <p className="text-xs text-ink-400 truncate max-w-[150px]">{f.school_name}</p>
+                        </td>
+                        <td>
+                          <a
+                            href={`tel:${f.contact_number}`}
+                            className="flex items-center gap-1.5 text-sm text-ink-700 hover:text-brand-600"
+                          >
+                            <Phone size={12} /> {f.contact_number}
+                          </a>
+                        </td>
+                        <td className="text-sm text-ink-500 whitespace-nowrap">{formatDate(f.dispatch_date)}</td>
+                        <td className="whitespace-nowrap">
+                          <span className={`text-sm font-medium ${overdueItem ? 'text-rose-600' : dueToday ? 'text-amber-600' : 'text-ink-600'}`}>
+                            {formatDate(f.reminder_date)}
+                            {overdueItem && <span className="ml-1 text-xs">(overdue)</span>}
+                            {dueToday && !overdueItem && <span className="ml-1 text-xs">(today)</span>}
+                          </span>
+                        </td>
+                        <td>
+                          <span className={`badge text-xs ${FOLLOWUP_STATUS_COLORS[f.status] || ''}`}>
+                            {getStatusLabel(f.status)}
+                          </span>
+                        </td>
+                        <td className="max-w-[140px]">
+                          <p className="text-xs text-ink-500 truncate">{f.remarks || '-'}</p>
+                        </td>
+                        <td className="text-right">
+                          <button onClick={() => setUpdateTarget(f)} className="btn-primary btn btn-sm">
+                            <MessageSquare size={13} /> Update
+                          </button>
+                        </td>
+                      </tr>
+                      {f.level_history && f.level_history.length > 0 && (
+                        <tr className="bg-ink-50/60">
+                          <td colSpan={7} className="px-4 py-3">
+                            <div className="space-y-2">
+                              <p className="text-[11px] font-semibold uppercase tracking-wide text-ink-400">
+                                Earlier Follow-ups
+                              </p>
+                              <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+                                {f.level_history.map(history => (
+                                  <div key={history.id} className="rounded-lg border border-ink-100 bg-white px-3 py-2 text-xs text-ink-500">
+                                    <p className="font-medium text-ink-800">{getStatusLabel(history.status)}</p>
+                                    <p className="mt-1">Reminder: {formatDate(history.reminder_date)}</p>
+                                    <p className="mt-1">{history.remarks || 'No remarks'}</p>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                    </Fragment>
                   );
                 })}
               </tbody>
