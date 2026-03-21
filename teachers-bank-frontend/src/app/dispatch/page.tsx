@@ -12,6 +12,43 @@ import EmptyState from '@/components/ui/EmptyState';
 import BarcodeDisplay from '@/components/ui/BarcodeDisplay';
 import toast from 'react-hot-toast';
 
+function escapeExcelValue(value: unknown) {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+function downloadExcelFile(filename: string, headers: string[], rows: Array<Array<unknown>>) {
+  const headerHtml = headers.map(header => `<th>${escapeExcelValue(header)}</th>`).join('');
+  const rowsHtml = rows
+    .map(row => `<tr>${row.map(cell => `<td>${escapeExcelValue(cell)}</td>`).join('')}</tr>`)
+    .join('');
+
+  const html = `
+    <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel">
+      <head><meta charSet="utf-8" /></head>
+      <body>
+        <table>
+          <thead><tr>${headerHtml}</tr></thead>
+          <tbody>${rowsHtml}</tbody>
+        </table>
+      </body>
+    </html>
+  `;
+
+  const blob = new Blob([`\ufeff${html}`], { type: 'application/vnd.ms-excel;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+}
+
 // ── Scan result banner ────────────────────────────────────────────────────────
 function ScanResult({ result, onClear }: { result: any; onClear: () => void }) {
   if (!result) return null;
@@ -112,6 +149,7 @@ export default function DispatchPage() {
   const [dispatches, setDispatches]     = useState<Dispatch[]>([]);
   const [pagination, setPagination]     = useState<PaginationType | null>(null);
   const [loading, setLoading]           = useState(true);
+  const [exporting, setExporting]       = useState(false);
   const [page, setPage]                 = useState(1);
   const [filterDate, setFilterDate]     = useState('');
   const [filterStatus, setFilterStatus] = useState('');
@@ -132,6 +170,55 @@ export default function DispatchPage() {
   }, [page, filterDate, filterStatus]);
 
   useEffect(() => { loadDispatches(); }, [loadDispatches]);
+
+  const exportDispatches = useCallback(async () => {
+    setExporting(true);
+    try {
+      const baseParams: Record<string, string | number> = { limit: 100 };
+      if (filterDate) baseParams.date = filterDate;
+      if (filterStatus) baseParams.status = filterStatus;
+
+      const firstPage = await dispatchApi.list({ ...baseParams, page: 1 });
+      const firstDispatches = firstPage.data?.dispatches ?? [];
+      const totalPages = firstPage.data?.pagination?.total_pages ?? 1;
+      const allDispatches: Dispatch[] = [...firstDispatches];
+
+      for (let currentPage = 2; currentPage <= totalPages; currentPage += 1) {
+        const nextPage = await dispatchApi.list({ ...baseParams, page: currentPage });
+        allDispatches.push(...(nextPage.data?.dispatches ?? []));
+      }
+
+      if (allDispatches.length === 0) {
+        toast.error('No dispatch data available to export');
+        return;
+      }
+
+      const rows = allDispatches.map((dispatch, index) => [
+        index + 1,
+        dispatch.teacher_name || '',
+        dispatch.school_name || '',
+        dispatch.contact_number || '',
+        dispatch.barcode || '',
+        dispatch.dispatch_date ? formatDate(dispatch.dispatch_date) : '',
+        dispatch.po_number || '',
+        dispatch.pod_date ? formatDate(dispatch.pod_date) : '',
+        dispatch.status,
+        dispatch.followup_count ?? 0,
+      ]);
+
+      const filenameDate = filterDate || today();
+      downloadExcelFile(
+        `dispatch-report-${filenameDate}.xls`,
+        ['Sl. No.', 'Teacher', 'School', 'Contact', 'Barcode', 'Dispatch Date', 'POD Number', 'POD Date', 'Status', 'Follow-ups'],
+        rows,
+      );
+      toast.success(`Exported ${allDispatches.length} dispatch record${allDispatches.length === 1 ? '' : 's'}`);
+    } catch (e: any) {
+      toast.error(e.message || 'Failed to export dispatch data');
+    } finally {
+      setExporting(false);
+    }
+  }, [filterDate, filterStatus]);
 
   async function handleScan(e: React.FormEvent) {
     e.preventDefault();
@@ -225,6 +312,9 @@ export default function DispatchPage() {
                 <X size={13} /> Clear
               </button>
             )}
+            <button onClick={exportDispatches} disabled={exporting} className="btn-primary btn btn-sm">
+              {exporting ? <><Loader2 size={14} className="animate-spin" /> Exporting...</> : 'Download Excel'}
+            </button>
             <button onClick={loadDispatches} className="btn-secondary btn btn-icon btn-sm">
               <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
             </button>
@@ -244,9 +334,8 @@ export default function DispatchPage() {
                     <tr>
                       <th>Sl. No.</th>
                       <th>Teacher</th>
-                      <th>Dispatch Date</th>
-                      <th>POD Date</th>
                       <th>POD Number</th>
+                      <th>POD Date</th>
                       <th>Status</th>
                       <th>Follow-ups</th>
                       <th className="text-right">Action</th>
@@ -260,10 +349,10 @@ export default function DispatchPage() {
                           <p className="font-medium text-ink-900 text-sm">{d.teacher_name}</p>
                           <p className="text-xs text-ink-400 truncate max-w-[160px]">{d.school_name}</p>
                         </td>
-                        <td className="text-sm text-ink-600 whitespace-nowrap">{formatDate(d.dispatch_date)}</td>
+                         <td className="text-sm text-ink-600 whitespace-nowrap">{d.po_number ? d.po_number : <span className="text-ink-300">—</span>}</td>
+
                         <td className="text-sm text-ink-600 whitespace-nowrap">{d.pod_date ? formatDate(d.pod_date) : <span className="text-ink-300">—</span>}</td>
-                        <td className="text-sm text-ink-600 whitespace-nowrap">{d.po_number ? d.po_number : <span className="text-ink-300">—</span>}</td>
-                        <td>
+                                               <td>
                           <span className={`badge text-xs ${
                             d.status === 'Delivered' ? 'bg-emerald-100 text-emerald-700' :
                             d.status === 'Returned'  ? 'bg-rose-100 text-rose-600' :

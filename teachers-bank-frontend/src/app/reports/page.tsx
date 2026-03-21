@@ -180,6 +180,18 @@ function ReportsContent() {
     });
   }, [data, reportType]);
 
+  const labelNotesRows = useMemo(() => {
+    if (reportType !== 'label') return [];
+
+    return data
+      .filter((row: any) => String(row.remarks || '').trim())
+      .map((row: any) => ({
+        id: row.id,
+        teacher_name: row.teacher_name || '-',
+        remarks: String(row.remarks || '').trim(),
+      }));
+  }, [data, reportType]);
+
   return (
     <div className="space-y-5 max-w-7xl">
       <style jsx global>{`
@@ -384,6 +396,30 @@ function ReportsContent() {
                           {row.stdQty[std] > 0 ? row.stdQty[std] : ''}
                         </td>
                       ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          {labelNotesRows.length > 0 && (
+            <div
+              className="overflow-x-auto rounded-lg border-2 border-black bg-white print:rounded-none"
+              style={{ pageBreakBefore: 'always' }}
+            >
+              <table className="w-full border-collapse text-sm text-black">
+                <thead>
+                  <tr>
+                    <th className="border-2 border-black px-4 py-3 text-left font-semibold whitespace-nowrap">Teacher Name</th>
+                    <th className="border-2 border-black px-4 py-3 text-left font-semibold">Notes</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {labelNotesRows.map(row => (
+                    <tr key={row.id}>
+                      <td className="border-2 border-black px-4 py-3 align-top font-medium">{row.teacher_name}</td>
+                      <td className="border-2 border-black px-4 py-3 align-top whitespace-pre-line">{row.remarks}</td>
                     </tr>
                   ))}
                 </tbody>
