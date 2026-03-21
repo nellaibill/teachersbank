@@ -29,13 +29,19 @@ function getStatusFilterValue(searchParams: ReturnType<typeof useSearchParams>) 
 
 function UpdateFollowupModal({ followup, onClose, onSaved }: { followup: Followup; onClose: () => void; onSaved: () => void }) {
   const [status, setStatus] = useState<Followup['status']>(followup.status === 'Informed' ? 'Processing' : followup.status);
-  const [remarks, setRemarks] = useState(followup.remarks || '');
-  const [reminder_date, setReminderDate] = useState(followup.reminder_date || '');
+  const [remarks, setRemarks] = useState('');
+  const [reminder_date, setReminderDate] = useState('');
   const [saving, setSaving] = useState(false);
   const shouldShowReminder = !['Completed', 'No Answer'].includes(status);
-  const previousFollowups = followup.level_history || [];
+  const followupHistory = followup.level_history || [];
+  const minReminderDate = today();
 
   async function handleSave() {
+    if (shouldShowReminder && reminder_date && reminder_date < minReminderDate) {
+      toast.error('Reminder date cannot be in the past');
+      return;
+    }
+
     setSaving(true);
     try {
       const payload: Record<string, any> = { status, remarks };
@@ -92,6 +98,7 @@ function UpdateFollowupModal({ followup, onClose, onSaved }: { followup: Followu
                 type="date"
                 className="form-input"
                 value={reminder_date}
+                min={minReminderDate}
                 onChange={e => setReminderDate(e.target.value)}
               />
             </div>
@@ -102,10 +109,10 @@ function UpdateFollowupModal({ followup, onClose, onSaved }: { followup: Followu
               Saving this form will create a new follow-up entry for this dispatch and keep the previous entries in history.
             </p>
           </div>
-          {previousFollowups.length > 0 && (
+          {followupHistory.length > 0 && (
             <div className="rounded-lg border border-ink-200 bg-ink-50 p-3 space-y-2">
-              <p className="text-xs font-semibold uppercase tracking-wide text-ink-500">Earlier Follow-up Details</p>
-              {previousFollowups.map(level => (
+              <p className="text-xs font-semibold uppercase tracking-wide text-ink-500">Follow-up History</p>
+              {followupHistory.map(level => (
                 <div key={level.id} className="rounded-md border border-ink-100 bg-white p-3 text-xs space-y-1">
                   <div className="flex items-center justify-between gap-3">
                     <span className={`badge text-[11px] ${FOLLOWUP_STATUS_COLORS[level.status] || ''}`}>
@@ -313,7 +320,7 @@ function FollowupsContent() {
                           <td colSpan={7} className="px-4 py-3">
                             <div className="space-y-2">
                               <p className="text-[11px] font-semibold uppercase tracking-wide text-ink-400">
-                                Earlier Follow-ups
+                                Follow-up History
                               </p>
                               <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
                                 {f.level_history.map(history => (

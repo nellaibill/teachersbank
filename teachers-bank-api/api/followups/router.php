@@ -175,9 +175,23 @@ function attachLevelHistory($conn, array &$followups) {
 
     foreach ($followups as &$row) {
         $historyRows = $historyMap[(int)$row['dispatch_id']] ?? [];
-        $row['level_history'] = array_values(array_filter($historyRows, function ($historyRow) use ($row) {
-            return (int)$historyRow['id'] !== (int)$row['id'];
-        }));
+        $row['level_history'] = array_values($historyRows);
+    }
+}
+
+function ensureReminderDateIsNotPast($reminderDate) {
+    if ($reminderDate === null || $reminderDate === '') {
+        return;
+    }
+
+    $date = DateTime::createFromFormat('Y-m-d', $reminderDate);
+    if (!$date || $date->format('Y-m-d') !== $reminderDate) {
+        sendError('Reminder date must be a valid date in YYYY-MM-DD format', 422);
+    }
+
+    $today = new DateTime('today');
+    if ($date < $today) {
+        sendError('Reminder date cannot be in the past', 422);
     }
 }
 
@@ -197,6 +211,8 @@ function createFollowup() {
     $reminderDate = $body['reminder_date'] ?? date('Y-m-d', strtotime($dispatch['dispatch_date'] . " +{$level}0 days"));
     $remarks      = $body['remarks'] ?? null;
     $dispatchId   = (int)$body['dispatch_id'];
+
+    ensureReminderDateIsNotPast($reminderDate);
 
     $stmt = $conn->prepare("INSERT INTO followups (dispatch_id, followup_level, reminder_date, remarks, status) VALUES (?, ?, ?, ?, 'Pending')");
     $stmt->bind_param('iiss', $dispatchId, $level, $reminderDate, $remarks);
@@ -233,6 +249,10 @@ function updateFollowup($id) {
     $remarks = array_key_exists('remarks', $body) ? $body['remarks'] : $current['remarks'];
     $reminderDate = $body['reminder_date'] ?? $current['reminder_date'];
     $dispatchId = (int)$current['dispatch_id'];
+
+    if (!in_array($status, ['Completed', 'No Answer'], true)) {
+        ensureReminderDateIsNotPast($reminderDate);
+    }
 
     $levelStmt = $conn->prepare("SELECT COALESCE(MAX(followup_level), 0) AS max_level FROM followups WHERE dispatch_id = ?");
     $levelStmt->bind_param('i', $dispatchId);

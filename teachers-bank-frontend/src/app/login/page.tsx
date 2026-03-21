@@ -63,7 +63,6 @@ export default function LoginPage() {
               <div>
                 <label className="form-label">Email Address</label>
                 <div className="relative">
-                  <Mail size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-400" />
                   <input
                     type="email"
                     className="form-input pl-9"
@@ -79,7 +78,6 @@ export default function LoginPage() {
               <div>
                 <label className="form-label">Password</label>
                 <div className="relative">
-                  <Lock size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-400" />
                   <input
                     type={showPwd ? 'text' : 'password'}
                     className="form-input pl-9 pr-10"
@@ -104,7 +102,7 @@ export default function LoginPage() {
             </form>
 
             <p className="text-center text-xs text-ink-400 mt-6">
-              Default: admin@teachersbank.com / Admin@123
+              
             </p>
           </div>
         </div>

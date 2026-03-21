@@ -84,12 +84,12 @@ function UpdateDispatchModal({ dispatch, onClose, onSaved }: { dispatch: Dispatc
           </div>
           {/* ── PO Number ── NEW ──────────────────────────────────────── */}
           <div>
-            <label className="form-label">PO Number</label>
+            <label className="form-label">POD Number</label>
             <input
               className="form-input"
               value={po_number}
               onChange={e => setPoNumber(e.target.value)}
-              placeholder="Purchase order number (optional)"
+              placeholder="Proof of delivery number (optional)"
             />
           </div>
           <div className="flex gap-3 pt-2">
@@ -158,9 +158,9 @@ export default function DispatchPage() {
         <p className="text-sm text-ink-500 mt-0.5">Scan barcodes to record dispatches</p>
       </div>
 
-      <div className="grid lg:grid-cols-3 gap-5">
+      <div className="space-y-5">
         {/* Scanner panel */}
-        <div className="lg:col-span-1 space-y-4">
+        <div className="space-y-4">
           <div className="card space-y-4">
             <div className="flex items-center gap-2">
               <div className="w-8 h-8 rounded-lg bg-brand-100 flex items-center justify-center">
@@ -169,31 +169,34 @@ export default function DispatchPage() {
               <h2 className="font-semibold text-ink-800">Scan Barcode</h2>
             </div>
 
-            <div>
-              <label className="form-label">Dispatch Date</label>
-              <input type="date" className="form-input" value={dispatchDate}
-                onChange={e => setDispatchDate(e.target.value)} />
-            </div>
-
             <form onSubmit={handleScan} className="space-y-3">
-              <div>
-                <label className="form-label">Barcode</label>
-                <input ref={inputRef} autoFocus className="form-input font-mono"
-                  value={barcode} onChange={e => setBarcode(e.target.value)}
-                  placeholder="Scan or type barcode…"
-                  disabled={scanning} />
-                <p className="text-xs text-ink-400 mt-1">Connect a barcode scanner or type manually</p>
+              <div className="grid gap-3 md:grid-cols-[180px_minmax(0,1fr)_160px] md:items-start">
+                <div>
+                  <label className="form-label">Dispatch Date</label>
+                  <input type="date" className="form-input" value={dispatchDate}
+                    onChange={e => setDispatchDate(e.target.value)} />
+                </div>
+
+                <div>
+                  <label className="form-label">Barcode</label>
+                  <input ref={inputRef} autoFocus className="form-input font-mono"
+                    value={barcode} onChange={e => setBarcode(e.target.value)}
+                    placeholder="Scan or type barcode…"
+                    disabled={scanning} />
+                </div>
+
+                <button type="submit" disabled={scanning || !barcode.trim()} className="btn-primary btn w-full md:mt-[26px]">
+                  {scanning ? <><Loader2 size={15} className="animate-spin" /> Processing…</> : <><Scan size={15} /> Dispatch</>}
+                </button>
               </div>
+
+              <p className="text-xs text-ink-400 md:pl-[193px]">Connect a barcode scanner or type manually</p>
 
               {barcode && (
                 <div className="p-3 bg-ink-50 rounded-lg">
                   <BarcodeDisplay value={barcode} height={48} fontSize={10} />
                 </div>
               )}
-
-              <button type="submit" disabled={scanning || !barcode.trim()} className="btn-primary btn w-full">
-                {scanning ? <><Loader2 size={15} className="animate-spin" /> Processing…</> : <><Scan size={15} /> Dispatch</>}
-              </button>
             </form>
           </div>
 
@@ -201,7 +204,7 @@ export default function DispatchPage() {
         </div>
 
         {/* Dispatch list */}
-        <div className="lg:col-span-2 space-y-4">
+        <div className="space-y-4">
           {/* Filters */}
           <div className="card p-3 flex gap-3 flex-wrap">
             <div className="flex items-center gap-2 flex-1 min-w-[140px]">
@@ -239,9 +242,11 @@ export default function DispatchPage() {
                 <table className="data-table">
                   <thead>
                     <tr>
+                      <th>Sl. No.</th>
                       <th>Teacher</th>
                       <th>Dispatch Date</th>
                       <th>POD Date</th>
+                      <th>POD Number</th>
                       <th>Status</th>
                       <th>Follow-ups</th>
                       <th className="text-right">Action</th>
@@ -250,12 +255,14 @@ export default function DispatchPage() {
                   <tbody>
                     {dispatches.map((d, idx) => (
                       <tr key={d.id} style={{ animationDelay: `${idx * 25}ms` }} className="animate-fade-in">
+                        <td className="text-sm text-ink-500 whitespace-nowrap">{(page - 1) * (pagination?.limit || 20) + idx + 1}</td>
                         <td>
                           <p className="font-medium text-ink-900 text-sm">{d.teacher_name}</p>
                           <p className="text-xs text-ink-400 truncate max-w-[160px]">{d.school_name}</p>
                         </td>
                         <td className="text-sm text-ink-600 whitespace-nowrap">{formatDate(d.dispatch_date)}</td>
                         <td className="text-sm text-ink-600 whitespace-nowrap">{d.pod_date ? formatDate(d.pod_date) : <span className="text-ink-300">—</span>}</td>
+                        <td className="text-sm text-ink-600 whitespace-nowrap">{d.po_number ? d.po_number : <span className="text-ink-300">—</span>}</td>
                         <td>
                           <span className={`badge text-xs ${
                             d.status === 'Delivered' ? 'bg-emerald-100 text-emerald-700' :
@@ -300,3 +307,6 @@ export default function DispatchPage() {
     </div>
   );
 }
+
+
+

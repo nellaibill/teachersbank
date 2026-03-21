@@ -111,6 +111,26 @@ export const MEDIUMS: Record<string, string> = {
 
 export const STANDARDS = ['6', '7', '8', '9', '10', '11', '12'];
 
+export const SUBJECT_STANDARD_MAP: Record<string, string[]> = {
+  TAM: [...STANDARDS],
+  ENG: [...STANDARDS],
+  MAT: [...STANDARDS],
+  SCI: ['6', '7', '8', '9', '10'],
+  SS: ['6', '7', '8', '9', '10'],
+  PHY: ['11', '12'],
+  CHE: ['11', '12'],
+  BIO: ['11', '12'],
+  BOT: ['11', '12'],
+  ZOO: ['11', '12'],
+  CS: ['11', '12'],
+  CA: ['11', '12'],
+  BM: ['11', '12'],
+  ECO: ['11', '12'],
+  COM: ['11', '12'],
+  ACC: ['11', '12'],
+  HIS: ['11', '12'],
+};
+
 export const SCHOOL_TYPES = [
   'Govt. School', 'Govt. Aided School', 'Matriculation School',
   'Corporation School', 'CBSE School',

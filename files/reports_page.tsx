@@ -3,7 +3,7 @@ import { useEffect, useState, useCallback, useMemo, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { Printer, RefreshCw, Filter, X, FileText } from 'lucide-react';
 import { reportsApi } from '@/lib/api';
-import { SCHOOL_TYPES, MEDIUMS, STANDARDS, DISTRICTS, SUBJECTS } from '@/lib/types';
+import { SCHOOL_TYPES, MEDIUMS, STANDARDS, DISTRICTS, SUBJECTS, SUBJECT_STANDARD_MAP } from '@/lib/types';
 import { formatDate } from '@/lib/utils';
 import BarcodeDisplay from '@/components/ui/BarcodeDisplay';
 import EmptyState from '@/components/ui/EmptyState';
@@ -120,6 +120,9 @@ function ReportsContent() {
       const mediumList = mediums.length ? mediums : ['-'];
 
       for (const subject of subjectList) {
+        const allowedStandards = new Set(SUBJECT_STANDARD_MAP[subject] || STANDARDS);
+        const applicableStandards = standards.filter((std: string) => allowedStandards.has(std));
+
         for (const medium of mediumList) {
           const key = `${districtCode}|${subject}|${medium}`;
 
@@ -133,9 +136,9 @@ function ReportsContent() {
             });
           }
 
-          if (standards.length > 0) {
+          if (applicableStandards.length > 0) {
             const target = grouped.get(key)!;
-            for (const std of standards) {
+            for (const std of applicableStandards) {
               target.stdQty[std] += 1;
             }
           }

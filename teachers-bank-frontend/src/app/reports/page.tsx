@@ -3,7 +3,7 @@ import { Fragment, useEffect, useState, useCallback, useMemo, Suspense } from 'r
 import { useSearchParams } from 'next/navigation';
 import { Printer, RefreshCw, Filter, X, FileText } from 'lucide-react';
 import { reportsApi } from '@/lib/api';
-import { SCHOOL_TYPES, MEDIUMS, STANDARDS, DISTRICTS, SUBJECTS } from '@/lib/types';
+import { SCHOOL_TYPES, MEDIUMS, STANDARDS, DISTRICTS, SUBJECTS, SUBJECT_STANDARD_MAP } from '@/lib/types';
 import { formatDate } from '@/lib/utils';
 import BarcodeDisplay from '@/components/ui/BarcodeDisplay';
 import EmptyState from '@/components/ui/EmptyState';
@@ -31,19 +31,17 @@ function ReportFilterHeader({ reportType, filters, total }: { reportType: string
   ];
 
   return (
-    <div className="rounded-xl border border-ink-200 bg-white p-4 print:rounded-none print:border-black">
-      <div className="flex items-start justify-between gap-4 flex-wrap">
-        <div>
-          <h2 className="text-lg font-semibold text-ink-900">{reportName}</h2>
+    <div className="rounded-xl border border-ink-200 bg-white px-4 py-3 print:rounded-none print:border-black print:px-3 print:py-2">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-2 text-sm print:flex-nowrap print:gap-x-2 print:gap-y-0">
+        <div className="flex items-baseline gap-2 whitespace-nowrap">
+          <h2 className="text-base font-semibold text-ink-900">{reportName}</h2>
           <p className="text-xs text-ink-500">Generated on {new Date().toLocaleDateString('en-IN')}</p>
         </div>
-        <p className="text-sm font-medium text-ink-600">Total Records: {total}</p>
-      </div>
-      <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-2 text-sm">
+        <p className="text-sm font-medium whitespace-nowrap text-ink-600">Total Records: {total}</p>
         {summary.map(item => (
-          <div key={item.label} className="rounded-lg bg-ink-50 px-3 py-2">
-            <p className="text-[11px] font-semibold uppercase tracking-wide text-ink-500">{item.label}</p>
-            <p className="mt-1 text-ink-800">{item.value}</p>
+          <div key={item.label} className="inline-flex items-center gap-1 rounded-full bg-ink-50 px-2.5 py-1 text-xs leading-none print:bg-transparent print:px-1.5">
+            <span className="font-semibold uppercase tracking-wide text-ink-500">{item.label}:</span>
+            <span className="whitespace-nowrap text-ink-800">{item.value}</span>
           </div>
         ))}
       </div>
@@ -149,6 +147,9 @@ function ReportsContent() {
       const mediumList = mediums.length ? mediums : ['-'];
 
       for (const subject of subjectList) {
+        const allowedStandards = new Set(SUBJECT_STANDARD_MAP[subject] || STANDARDS);
+        const applicableStandards = standards.filter((std: string) => allowedStandards.has(std));
+
         for (const medium of mediumList) {
           const key = `${districtCode}|${subject}|${medium}`;
 
@@ -162,9 +163,9 @@ function ReportsContent() {
             });
           }
 
-          if (standards.length > 0) {
+          if (applicableStandards.length > 0) {
             const target = grouped.get(key)!;
-            for (const std of standards) {
+            for (const std of applicableStandards) {
               target.stdQty[std] += 1;
             }
           }
