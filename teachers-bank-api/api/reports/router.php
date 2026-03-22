@@ -12,6 +12,23 @@ switch ($type) {
     default: sendError('Invalid report type. Use: consolidated, label, dispatch, school_address', 400);
 }
 
+function parseReportClassifications($value): array {
+    if (is_string($value) && trim($value) !== '') {
+        $decoded = json_decode($value, true);
+        if (json_last_error() === JSON_ERROR_NONE) $value = $decoded;
+    }
+
+    return is_array($value) ? array_values($value) : [];
+}
+
+function expandReportTeacherRow(array $row): array {
+    $row['sub_code_arr'] = $row['sub_code'] ? explode(',', $row['sub_code']) : [];
+    $row['std_arr'] = $row['std'] ? explode(',', $row['std']) : [];
+    $row['medium_arr'] = $row['medium'] ? explode(',', $row['medium']) : [];
+    $row['classifications'] = parseReportClassifications($row['classifications'] ?? null);
+    return $row;
+}
+
 // Build WHERE clauses for teacher filters
 // Multi-value fields (sub_code, std, medium) use FIND_IN_SET
 function buildTeacherFilters(string $prefix = 't'): array {
@@ -57,7 +74,7 @@ function consolidatedReport() {
 
     $sql = "
         SELECT t.id, t.teacher_name, t.contact_number, t.barcode,
-               t.dt_code, t.sub_code, t.std, t.medium,
+               t.dt_code, t.sub_code, t.std, t.medium, t.classifications,
                t.school_name, t.school_type, t.teacher_address, t.pincode,
                (SELECT COUNT(*) FROM dispatch d WHERE d.teacher_id = t.id) AS total_dispatches,
                (SELECT MAX(d.dispatch_date) FROM dispatch d WHERE d.teacher_id = t.id) AS last_dispatch_date,
@@ -74,10 +91,8 @@ function consolidatedReport() {
 
     $rows = []; $sno = 1;
     while ($row = $result->fetch_assoc()) {
+        $row = expandReportTeacherRow($row);
         $row['sno']          = $sno++;
-        $row['sub_code_arr'] = $row['sub_code'] ? explode(',', $row['sub_code']) : [];
-        $row['std_arr']      = $row['std']       ? explode(',', $row['std'])      : [];
-        $row['medium_arr']   = $row['medium']    ? explode(',', $row['medium'])   : [];
         $rows[] = $row;
     }
     $conn->close();
@@ -94,7 +109,7 @@ function labelReport() {
     $sql = "
         SELECT t.id, t.teacher_name, t.contact_number, t.barcode,
                t.teacher_address, t.pincode,
-               t.school_name, t.dt_code, t.sub_code, t.medium, t.std,
+               t.school_name, t.dt_code, t.sub_code, t.medium, t.std, t.classifications,
                t.remarks
         FROM teachers t $whereSQL ORDER BY t.dt_code, t.teacher_name
     ";
@@ -105,6 +120,7 @@ function labelReport() {
 
     $labels = [];
     while ($row = $result->fetch_assoc()) {
+        $row = expandReportTeacherRow($row);
         // Build full address for label printing
         $row['full_address'] = implode("\n", array_filter([
             $row['teacher_address'],

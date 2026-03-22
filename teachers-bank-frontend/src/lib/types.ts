@@ -14,6 +14,7 @@ export interface Teacher {
   std_arr?: string[];
   medium?: string;
   medium_arr?: string[];
+  classifications?: TeacherClassification[];
   school_name?: string;
   school_type?: string;
   remarks?: string;           // ← NEW
@@ -69,6 +70,12 @@ export interface Followup {
     remarks?: string;
     updated_at?: string;
   }>;
+}
+
+export interface TeacherClassification {
+  std: string;
+  medium: string;
+  subjects: string[];
 }
 
 export interface Pagination {

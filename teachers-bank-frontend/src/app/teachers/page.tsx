@@ -4,6 +4,7 @@ import { useSearchParams } from 'next/navigation';
 import { Plus, Search, Filter, Edit2, Trash2, Eye, Phone, X, RefreshCw, Users } from 'lucide-react';
 import { teachersApi } from '@/lib/api';
 import { Teacher, Pagination as PaginationType, DISTRICTS, SUBJECTS, MEDIUMS, STANDARDS, SCHOOL_TYPES } from '@/lib/types';
+import { getTeacherClassifications } from '@/lib/teacherClassifications';
 import TeacherFormModal from '@/components/teachers/TeacherFormModal';
 import TeacherDetailModal from '@/components/teachers/TeacherDetailModal';
 import Pagination from '@/components/ui/Pagination';
@@ -193,7 +194,9 @@ function TeachersContent() {
                 </tr>
               </thead>
               <tbody>
-                {teachers.map((t, idx) => (
+                {teachers.map((t, idx) => {
+                  const classifications = getTeacherClassifications(t);
+                  return (
                   <tr key={t.id} className="animate-fade-in" style={{ animationDelay: `${idx * 30}ms` }}>
                     <td className="text-ink-400 font-mono text-xs w-10">{t.id}</td>
                     <td>
@@ -213,26 +216,25 @@ function TeachersContent() {
                         : '—'}
                     </td>
                     <td>
-                      <div className="flex gap-1 flex-wrap max-w-[140px]">
-                        {(t.sub_code_arr || []).map(s => (
-                          <span key={s} className="badge bg-brand-100 text-brand-700 text-[10px]">
-                            {SUBJECTS[s] || s}
-                          </span>
-                        ))}
+                      <div className="flex gap-1 flex-wrap max-w-[180px]">
+                        {classifications.flatMap((entry, rowIndex) =>
+                          entry.subjects.map(subject => (
+                            <span key={`${rowIndex}-${entry.std}-${entry.medium}-${subject}`} className="badge bg-brand-100 text-brand-700 text-[10px]">
+                              {SUBJECTS[subject] || subject}
+                              <span className="ml-1 opacity-70">Std {entry.std}</span>
+                            </span>
+                          ))
+                        )}
                       </div>
                     </td>
                     <td>
                       <div className="flex flex-col gap-1">
-                        {(t.std_arr || []).length > 0 && (
-                          <span className="badge bg-amber-100 text-amber-700 text-[10px]">
-                            Std {t.std_arr!.join(', ')}
-                          </span>
-                        )}
-                        {(t.medium_arr || []).length > 0 && (
-                          <span className="badge bg-ink-100 text-ink-600 text-[10px]">
-                            {t.medium_arr!.join(' + ')}
-                          </span>
-                        )}
+                        {classifications.map((entry, rowIndex) => (
+                          <div key={`${entry.std}-${entry.medium}-${rowIndex}`} className="flex flex-wrap gap-1">
+                            <span className="badge bg-amber-100 text-amber-700 text-[10px]">Std {entry.std}</span>
+                            <span className="badge bg-ink-100 text-ink-600 text-[10px]">{MEDIUMS[entry.medium] || entry.medium}</span>
+                          </div>
+                        ))}
                       </div>
                     </td>
                     <td className="max-w-[160px]">
@@ -252,7 +254,8 @@ function TeachersContent() {
                       </div>
                     </td>
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
           </div>

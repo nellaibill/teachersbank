@@ -4,6 +4,7 @@ import { useSearchParams } from 'next/navigation';
 import { Printer, RefreshCw, Filter, X, FileText } from 'lucide-react';
 import { reportsApi } from '@/lib/api';
 import { SCHOOL_TYPES, MEDIUMS, STANDARDS, DISTRICTS, SUBJECTS, SUBJECT_STANDARD_MAP } from '@/lib/types';
+import { getTeacherClassifications } from '@/lib/teacherClassifications';
 import { formatDate } from '@/lib/utils';
 import BarcodeDisplay from '@/components/ui/BarcodeDisplay';
 import EmptyState from '@/components/ui/EmptyState';
@@ -51,10 +52,14 @@ function ReportFilterHeader({ reportType, filters, total }: { reportType: string
 
 function LabelCard({ label, serialNo }: { label: any; serialNo: number }) {
   const districtWithPin = ['', label.pincode].filter(Boolean).join(' - ');
-  const subjectLine = [label.dt_code, label.sub_code, label.std, label.medium]
-    .map((v: string | undefined) => (v || '').trim())
-    .filter(Boolean)
-    .join('-');
+  const classifications = getTeacherClassifications(label);
+  const subjectLine = classifications
+    .map(entry => {
+      const subjects = entry.subjects.map(subject => SUBJECTS[subject] || subject).join(', ');
+      const medium = MEDIUMS[entry.medium] || entry.medium;
+      return `${label.dt_code || '-'} / Std ${entry.std} / ${medium} / ${subjects}`;
+    })
+    .join(' | ');
 
   return (
     <div
@@ -122,12 +127,6 @@ function ReportsContent() {
   const labelSummaryRows = useMemo(() => {
     if (reportType !== 'label') return [];
 
-    const splitCsv = (value: any) =>
-      String(value || '')
-        .split(',')
-        .map(v => v.trim())
-        .filter(Boolean);
-
     const grouped = new Map<string, {
       district: string;
       districtCode: string;
@@ -139,36 +138,27 @@ function ReportsContent() {
     for (const row of data) {
       const districtCode = String(row.dt_code || '').trim();
       const district = DISTRICTS[districtCode] || districtCode || '-';
-      const subjects = splitCsv(row.sub_code);
-      const mediums = splitCsv(row.medium);
-      const standards = splitCsv(row.std).filter((s: string) => STANDARDS.includes(s));
+      const classifications = getTeacherClassifications(row);
 
-      const subjectList = subjects.length ? subjects : ['-'];
-      const mediumList = mediums.length ? mediums : ['-'];
+      for (const entry of classifications) {
+        for (const subject of entry.subjects) {
+          const allowedStandards = new Set(SUBJECT_STANDARD_MAP[subject] || STANDARDS);
+          if (!allowedStandards.has(entry.std)) continue;
 
-      for (const subject of subjectList) {
-        const allowedStandards = new Set(SUBJECT_STANDARD_MAP[subject] || STANDARDS);
-        const applicableStandards = standards.filter((std: string) => allowedStandards.has(std));
-
-        for (const medium of mediumList) {
-          const key = `${districtCode}|${subject}|${medium}`;
+          const key = `${districtCode}|${subject}|${entry.medium}`;
 
           if (!grouped.has(key)) {
             grouped.set(key, {
               district,
               districtCode: districtCode || '-',
               subject,
-              medium,
+              medium: entry.medium,
               stdQty: STANDARDS.reduce((acc, std) => ({ ...acc, [std]: 0 }), {} as Record<string, number>),
             });
           }
 
-          if (applicableStandards.length > 0) {
-            const target = grouped.get(key)!;
-            for (const std of applicableStandards) {
-              target.stdQty[std] += 1;
-            }
-          }
+          const target = grouped.get(key)!;
+          target.stdQty[entry.std] += 1;
         }
       }
     }
@@ -390,7 +380,7 @@ function ReportsContent() {
                       <td className="border-2 border-black px-3 py-3">{idx + 1}</td>
                       <td className="border-2 border-black px-4 py-3 text-left">{row.district}</td>
                       <td className="border-2 border-black px-4 py-3">{SUBJECTS[row.subject] || row.subject}</td>
-                      <td className="border-2 border-black px-4 py-3">{row.medium}</td>
+                      <td className="border-2 border-black px-4 py-3">{MEDIUMS[row.medium] || row.medium}</td>
                       {STANDARDS.map(std => (
                         <td key={std} className="border-2 border-black px-4 py-3">
                           {row.stdQty[std] > 0 ? row.stdQty[std] : ''}

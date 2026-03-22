@@ -18,6 +18,7 @@ CREATE TABLE teachers (
   sub_code        VARCHAR(255),            -- CSV multi: "MAT,SCI,PHY"
   std             VARCHAR(100),            -- CSV multi: "6,7,8,9"
   medium          VARCHAR(50),             -- CSV multi: "TM,EM"
+  classifications LONGTEXT,               -- JSON rows: [{"std":"6","medium":"TM","subjects":["MAT"]}]
   school_name     TEXT,
   school_type     VARCHAR(50),             -- includes CBSE School now
   barcode         TEXT,
