@@ -68,9 +68,11 @@ function TeachersContent() {
             {pagination ? `${pagination.total} teachers registered` : 'Manage teacher records'}
           </p>
         </div>
-        <button onClick={() => { setEditTeacher(null); setShowForm(true); }} className="btn-primary btn">
-          <Plus size={16} /> Add Teacher
-        </button>
+        <div className="flex items-center gap-2 flex-wrap">
+          <button onClick={() => { setEditTeacher(null); setShowForm(true); }} className="btn-primary btn">
+            <Plus size={16} /> Add Teacher
+          </button>
+        </div>
       </div>
 
       {/* Search + Filters */}

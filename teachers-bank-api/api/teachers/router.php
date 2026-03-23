@@ -218,6 +218,202 @@ function validateTeacher(array $body): array {
     return $errors;
 }
 
+function normaliseImportString($value): string {
+    $trimmed = trim((string)$value);
+    return in_array(strtolower($trimmed), ['null', 'undefined'], true) ? '' : $trimmed;
+}
+
+function normaliseImportNullableString($value): ?string {
+    $trimmed = normaliseImportString($value);
+    return $trimmed === '' ? null : $trimmed;
+}
+
+function normaliseImportTeacherRow(array $row): array {
+    $classificationMap = normaliseImportString($row['classification_map'] ?? ($row['classifications'] ?? ''));
+    $isActiveRaw = normaliseImportString($row['isActive'] ?? '1');
+    $isActive = in_array(strtolower($isActiveRaw), ['0', 'false', 'inactive', 'no'], true) ? 0 : 1;
+
+    return [
+        'id' => is_numeric($row['id'] ?? null) ? (int)$row['id'] : null,
+        'teacher_name' => normaliseImportString($row['teacher_name'] ?? ''),
+        'contact_number' => normaliseImportString($row['contact_number'] ?? ''),
+        'teacher_address' => normaliseImportString($row['teacher_address'] ?? ''),
+        'pincode' => normaliseImportString($row['pincode'] ?? ''),
+        'dt_code' => strtoupper(normaliseImportString($row['dt_code'] ?? '')),
+        'sub_code' => normaliseImportString($row['sub_code'] ?? ''),
+        'std' => normaliseImportString($row['std'] ?? ''),
+        'medium' => strtoupper(normaliseImportString($row['medium'] ?? '')),
+        'classification_map' => $classificationMap,
+        'classifications' => $classificationMap,
+        'school_name' => normaliseImportString($row['school_name'] ?? ''),
+        'school_type' => normaliseImportString($row['school_type'] ?? ''),
+        'remarks' => normaliseImportNullableString($row['remarks'] ?? null),
+        'barcode' => normaliseImportNullableString($row['barcode'] ?? null),
+        'isActive' => $isActive,
+    ];
+}
+
+function findTeacherImportTargetId(mysqli $conn, array $body): ?int {
+    if (!empty($body['id'])) {
+        $stmt = $conn->prepare("SELECT id FROM teachers WHERE id = ? LIMIT 1");
+        $stmt->bind_param('i', $body['id']);
+        $stmt->execute();
+        $match = $stmt->get_result()->fetch_assoc();
+        if ($match) return (int)$match['id'];
+    }
+
+    if (!empty($body['barcode'])) {
+        $stmt = $conn->prepare("SELECT id FROM teachers WHERE barcode = ? LIMIT 1");
+        $stmt->bind_param('s', $body['barcode']);
+        $stmt->execute();
+        $match = $stmt->get_result()->fetch_assoc();
+        if ($match) return (int)$match['id'];
+    }
+
+    return null;
+}
+
+function insertImportedTeacher(mysqli $conn, array $body): void {
+    $classifications = getTeacherClassificationsFromBody($body);
+    $flattened = flattenClassifications($classifications);
+
+    $teacher_name = sanitize($body['teacher_name']);
+    $contact_number = sanitize($body['contact_number']);
+    $teacher_address = sanitize($body['teacher_address']);
+    $pincode = $body['pincode'];
+    $dt_code = $body['dt_code'];
+    $school_name = sanitize($body['school_name']);
+    $school_type = $body['school_type'];
+    $remarks = $body['remarks'] !== null ? sanitize($body['remarks']) : null;
+    $barcode = $body['barcode'];
+    $isActive = isset($body['isActive']) ? (int)$body['isActive'] : 1;
+
+    $stmt = $conn->prepare("
+        INSERT INTO teachers
+            (teacher_name, contact_number, teacher_address, pincode,
+             dt_code, sub_code, std, medium, classifications, school_name, school_type, remarks, barcode, isActive)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ");
+    $stmt->bind_param(
+        'sssssssssssssi',
+        $teacher_name, $contact_number, $teacher_address, $pincode,
+        $dt_code, $flattened['sub_code'], $flattened['std'], $flattened['medium'], $flattened['classifications'],
+        $school_name, $school_type, $remarks, $barcode, $isActive
+    );
+    if (!$stmt->execute()) {
+        throw new RuntimeException('Failed to create teacher: ' . $stmt->error);
+    }
+
+    if (empty($barcode)) {
+        $teacherId = $conn->insert_id;
+        $generatedBarcode = generateBarcode(['id' => $teacherId]);
+        $upd = $conn->prepare("UPDATE teachers SET barcode = ? WHERE id = ?");
+        $upd->bind_param('si', $generatedBarcode, $teacherId);
+        if (!$upd->execute()) {
+            throw new RuntimeException('Failed to generate barcode for imported teacher');
+        }
+    }
+}
+
+function updateImportedTeacher(mysqli $conn, int $id, array $body): void {
+    $classifications = getTeacherClassificationsFromBody($body);
+    $flattened = flattenClassifications($classifications);
+
+    $teacher_name = sanitize($body['teacher_name']);
+    $contact_number = sanitize($body['contact_number']);
+    $teacher_address = sanitize($body['teacher_address']);
+    $pincode = $body['pincode'];
+    $dt_code = $body['dt_code'];
+    $school_name = sanitize($body['school_name']);
+    $school_type = $body['school_type'];
+    $remarks = $body['remarks'] !== null ? sanitize($body['remarks']) : null;
+    $barcode = $body['barcode'];
+    $isActive = isset($body['isActive']) ? (int)$body['isActive'] : 1;
+
+    $stmt = $conn->prepare("
+        UPDATE teachers SET
+            teacher_name=?, contact_number=?, teacher_address=?, pincode=?,
+            dt_code=?, sub_code=?, std=?, medium=?, classifications=?,
+            school_name=?, school_type=?, remarks=?, barcode=?, isActive=?
+        WHERE id=?
+    ");
+    $stmt->bind_param(
+        'sssssssssssssii',
+        $teacher_name, $contact_number, $teacher_address, $pincode,
+        $dt_code, $flattened['sub_code'], $flattened['std'], $flattened['medium'], $flattened['classifications'],
+        $school_name, $school_type, $remarks, $barcode, $isActive, $id
+    );
+    if (!$stmt->execute()) {
+        throw new RuntimeException('Failed to update teacher: ' . $stmt->error);
+    }
+}
+
+function importTeachersBody(array $body) {
+    $rows = $body['rows'] ?? null;
+
+    if (!is_array($rows) || empty($rows)) {
+        sendError('No teacher rows provided for import', 422);
+    }
+
+    $conn = getDBConnection();
+    $summary = [
+        'total' => count($rows),
+        'created' => 0,
+        'updated' => 0,
+        'errors' => [],
+    ];
+
+    foreach ($rows as $index => $row) {
+        if (!is_array($row)) {
+            $summary['errors'][] = [
+                'row' => $index + 2,
+                'message' => 'Invalid CSV row',
+            ];
+            continue;
+        }
+
+        $teacherBody = normaliseImportTeacherRow($row);
+        $errors = validateTeacher($teacherBody);
+        if ($errors) {
+            $summary['errors'][] = [
+                'row' => $index + 2,
+                'teacher_name' => $teacherBody['teacher_name'] ?: null,
+                'message' => implode('; ', $errors),
+            ];
+            continue;
+        }
+
+        try {
+            $targetId = findTeacherImportTargetId($conn, $teacherBody);
+            if ($targetId !== null) {
+                updateImportedTeacher($conn, $targetId, $teacherBody);
+                $summary['updated']++;
+            } else {
+                insertImportedTeacher($conn, $teacherBody);
+                $summary['created']++;
+            }
+        } catch (Throwable $e) {
+            $summary['errors'][] = [
+                'row' => $index + 2,
+                'teacher_name' => $teacherBody['teacher_name'] ?: null,
+                'message' => $e->getMessage(),
+            ];
+        }
+    }
+
+    $conn->close();
+
+    $message = empty($summary['errors'])
+        ? 'Import completed'
+        : 'Import completed with errors';
+
+    sendSuccess($summary, $message);
+}
+
+function importTeachers() {
+    importTeachersBody(getRequestBody());
+}
+
 if ($id) {
     switch ($method) {
         case 'GET':    getTeacher($id);    break;
@@ -228,7 +424,11 @@ if ($id) {
 } else {
     switch ($method) {
         case 'GET':  getTeachers();   break;
-        case 'POST': createTeacher(); break;
+        case 'POST':
+            $body = getRequestBody();
+            if (isset($body['rows']) && is_array($body['rows'])) importTeachersBody($body);
+            createTeacherBody($body);
+            break;
         default: sendError('Method not allowed', 405);
     }
 }
@@ -274,8 +474,7 @@ function getTeachers() {
     sendSuccess(['teachers' => $teachers, 'pagination' => ['total' => (int)$total, 'page' => $page, 'limit' => $limit, 'total_pages' => (int)ceil($total / $limit)]]);
 }
 
-function createTeacher() {
-    $body = getRequestBody();
+function createTeacherBody(array $body) {
     $errors = validateTeacher($body);
     if ($errors) sendError('Validation failed', 422, $errors);
 
@@ -319,6 +518,10 @@ function createTeacher() {
 
     $conn->close();
     sendSuccess($teacher, 'Teacher created successfully');
+}
+
+function createTeacher() {
+    createTeacherBody(getRequestBody());
 }
 
 function getTeacher($id) {

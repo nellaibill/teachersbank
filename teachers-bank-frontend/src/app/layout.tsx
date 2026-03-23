@@ -23,6 +23,7 @@ function Sidebar({ open, onClose }: { open: boolean; onClose: () => void }) {
 
   return (
     <aside className={cn(
+      'no-print',
       'fixed top-0 left-0 h-full z-50 flex flex-col w-[240px]',
       'bg-gradient-to-b from-ink-900 to-ink-950',
       'transition-transform duration-300',
@@ -117,11 +118,11 @@ function AppShell({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex min-h-screen">
       {open && (
-        <div className="fixed inset-0 bg-black/40 z-40 lg:hidden" onClick={() => setOpen(false)} />
+        <div className="fixed inset-0 bg-black/40 z-40 lg:hidden no-print" onClick={() => setOpen(false)} />
       )}
       <Sidebar open={open} onClose={() => setOpen(false)} />
-      <div className="flex-1 lg:ml-[240px] flex flex-col min-h-screen">
-        <header className="lg:hidden sticky top-0 z-30 bg-white border-b border-ink-100 px-4 py-3 flex items-center gap-3">
+      <div className="flex-1 lg:ml-[240px] flex flex-col min-h-screen print:ml-0">
+        <header className="lg:hidden sticky top-0 z-30 bg-white border-b border-ink-100 px-4 py-3 flex items-center gap-3 no-print">
           <button onClick={() => setOpen(true)} className="text-ink-600">
             <Menu size={22} />
           </button>
@@ -129,7 +130,7 @@ function AppShell({ children }: { children: React.ReactNode }) {
             Teachers Bank
           </span>
         </header>
-        <main className="flex-1 p-5 lg:p-7 animate-fade-in">
+        <main className="flex-1 p-5 lg:p-7 animate-fade-in print:p-0">
           {children}
         </main>
       </div>

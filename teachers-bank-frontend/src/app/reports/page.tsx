@@ -323,90 +323,109 @@ function ReportsContent() {
         <EmptyState icon={FileText} title="No data found" description="Try adjusting your filters" />
       ) : reportType === 'label' ? (
         <div className="print:p-0 space-y-4 print:space-y-0">
-          <ReportFilterHeader reportType={reportType} filters={filters} total={data.length} />
+          <div className="print:hidden">
+            <ReportFilterHeader reportType={reportType} filters={filters} total={data.length} />
+          </div>
           <div className="space-y-4 print:space-y-0">
             {labelPages.map((page, pageIndex) => (
               <div
                 key={pageIndex}
-                className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 print:grid-cols-3 print:gap-2"
+                className="space-y-3 print:space-y-2"
                 style={{
                   pageBreakAfter: pageIndex < labelPages.length - 1 ? 'always' : 'auto',
-                  paddingTop: '30px',
                 }}
               >
-                {page.map((label: any, itemIndex: number) => (
-                  <LabelCard
-                    key={`${label.id}-${pageIndex}-${itemIndex}`}
-                    label={label}
-                    serialNo={pageIndex * 9 + itemIndex + 1}
-                  />
-                ))}
+                <div className="hidden print:block">
+                  <ReportFilterHeader reportType={reportType} filters={filters} total={data.length} />
+                </div>
+                <div
+                  className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 print:grid-cols-3 print:gap-2"
+                  style={{ paddingTop: '16px' }}
+                >
+                  {page.map((label: any, itemIndex: number) => (
+                    <LabelCard
+                      key={`${label.id}-${pageIndex}-${itemIndex}`}
+                      label={label}
+                      serialNo={pageIndex * 9 + itemIndex + 1}
+                    />
+                  ))}
+                </div>
               </div>
             ))}
           </div>
 
           {labelSummaryRows.length > 0 && (
             <div
-              className="overflow-x-auto rounded-lg border-2 border-black bg-[#e9e9e9] print:rounded-none"
+              className="space-y-2"
               style={{ pageBreakBefore: 'always' }}
             >
-              <table className="w-full border-collapse text-center text-sm text-black">
-                <thead>
-                  <tr>
-                    <th rowSpan={2} className="border-2 border-black px-3 py-3 font-semibold whitespace-nowrap">Sl. No</th>
-                    <th rowSpan={2} className="border-2 border-black px-4 py-3 font-semibold whitespace-nowrap">District</th>
-                    <th rowSpan={2} className="border-2 border-black px-4 py-3 font-semibold whitespace-nowrap">Subject</th>
-                    <th rowSpan={2} className="border-2 border-black px-4 py-3 font-semibold whitespace-nowrap">Medium</th>
-                    <th colSpan={STANDARDS.length} className="border-2 border-black px-4 py-3 font-semibold">
-                      Required Books Quantity Standard Wise
-                    </th>
-                  </tr>
-                  <tr>
-                    {STANDARDS.map(std => (
-                      <th key={std} className="border-2 border-black px-4 py-3 font-semibold">{std}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {labelSummaryRows.map((row, idx) => (
-                    <tr key={`${row.districtCode}-${row.subject}-${row.medium}`}>
-                      <td className="border-2 border-black px-3 py-3">{idx + 1}</td>
-                      <td className="border-2 border-black px-4 py-3 text-left">{row.district}</td>
-                      <td className="border-2 border-black px-4 py-3">{SUBJECTS[row.subject] || row.subject}</td>
-                      <td className="border-2 border-black px-4 py-3">{MEDIUMS[row.medium] || row.medium}</td>
+              <div className="hidden print:block">
+                <ReportFilterHeader reportType={reportType} filters={filters} total={data.length} />
+              </div>
+              <div className="overflow-x-auto rounded-lg border-2 border-black bg-[#e9e9e9] print:rounded-none">
+                <table className="w-full border-collapse text-center text-sm text-black">
+                  <thead>
+                    <tr>
+                      <th rowSpan={2} className="border-2 border-black px-3 py-3 font-semibold whitespace-nowrap">Sl. No</th>
+                      <th rowSpan={2} className="border-2 border-black px-4 py-3 font-semibold whitespace-nowrap">District</th>
+                      <th rowSpan={2} className="border-2 border-black px-4 py-3 font-semibold whitespace-nowrap">Subject</th>
+                      <th rowSpan={2} className="border-2 border-black px-4 py-3 font-semibold whitespace-nowrap">Medium</th>
+                      <th colSpan={STANDARDS.length} className="border-2 border-black px-4 py-3 font-semibold">
+                        Required Books Quantity Standard Wise
+                      </th>
+                    </tr>
+                    <tr>
                       {STANDARDS.map(std => (
-                        <td key={std} className="border-2 border-black px-4 py-3">
-                          {row.stdQty[std] > 0 ? row.stdQty[std] : ''}
-                        </td>
+                        <th key={std} className="border-2 border-black px-4 py-3 font-semibold">{std}</th>
                       ))}
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {labelSummaryRows.map((row, idx) => (
+                      <tr key={`${row.districtCode}-${row.subject}-${row.medium}`}>
+                        <td className="border-2 border-black px-3 py-3">{idx + 1}</td>
+                        <td className="border-2 border-black px-4 py-3 text-left">{row.district}</td>
+                        <td className="border-2 border-black px-4 py-3">{SUBJECTS[row.subject] || row.subject}</td>
+                        <td className="border-2 border-black px-4 py-3">{MEDIUMS[row.medium] || row.medium}</td>
+                        {STANDARDS.map(std => (
+                          <td key={std} className="border-2 border-black px-4 py-3">
+                            {row.stdQty[std] > 0 ? row.stdQty[std] : ''}
+                          </td>
+                        ))}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
           )}
 
           {labelNotesRows.length > 0 && (
             <div
-              className="overflow-x-auto rounded-lg border-2 border-black bg-white print:rounded-none"
+              className="space-y-2"
               style={{ pageBreakBefore: 'always' }}
             >
-              <table className="w-full border-collapse text-sm text-black">
-                <thead>
-                  <tr>
-                    <th className="border-2 border-black px-4 py-3 text-left font-semibold whitespace-nowrap">Teacher Name</th>
-                    <th className="border-2 border-black px-4 py-3 text-left font-semibold">Notes</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {labelNotesRows.map(row => (
-                    <tr key={row.id}>
-                      <td className="border-2 border-black px-4 py-3 align-top font-medium">{row.teacher_name}</td>
-                      <td className="border-2 border-black px-4 py-3 align-top whitespace-pre-line">{row.remarks}</td>
+              <div className="hidden print:block">
+                <ReportFilterHeader reportType={reportType} filters={filters} total={data.length} />
+              </div>
+              <div className="overflow-x-auto rounded-lg border-2 border-black bg-white print:rounded-none">
+                <table className="w-full border-collapse text-sm text-black">
+                  <thead>
+                    <tr>
+                      <th className="border-2 border-black px-4 py-3 text-left font-semibold whitespace-nowrap">Teacher Name</th>
+                      <th className="border-2 border-black px-4 py-3 text-left font-semibold">Notes</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {labelNotesRows.map(row => (
+                      <tr key={row.id}>
+                        <td className="border-2 border-black px-4 py-3 align-top font-medium">{row.teacher_name}</td>
+                        <td className="border-2 border-black px-4 py-3 align-top whitespace-pre-line">{row.remarks}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
           )}
         </div>

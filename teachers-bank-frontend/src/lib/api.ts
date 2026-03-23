@@ -47,6 +47,7 @@ export const teachersApi = {
   list:   (params?: Record<string, any>) => apiFetch('api/teachers', 'GET', undefined, params),
   get:    (id: number)                   => apiFetch(`api/teachers/${id}`),
   create: (data: object)                 => apiFetch('api/teachers', 'POST', data),
+  import: (rows: object[])               => apiFetch('api/teachers', 'POST', { rows }),
   update: (id: number, data: object)     => apiFetch(`api/teachers/${id}`, 'PUT', data),
   delete: (id: number)                   => apiFetch(`api/teachers/${id}`, 'DELETE'),
 };
