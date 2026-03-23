@@ -14,7 +14,8 @@ export interface Teacher {
   std_arr?: string[];
   medium?: string;
   medium_arr?: string[];
-  classifications?: TeacherClassification[];
+  classifications?: TeacherClassification[] | string;
+  classification_map?: string;
   school_name?: string;
   school_type?: string;
   remarks?: string;           // ← NEW

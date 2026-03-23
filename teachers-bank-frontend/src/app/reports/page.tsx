@@ -52,14 +52,7 @@ function ReportFilterHeader({ reportType, filters, total }: { reportType: string
 
 function LabelCard({ label, serialNo }: { label: any; serialNo: number }) {
   const districtWithPin = ['', label.pincode].filter(Boolean).join(' - ');
-  const classifications = getTeacherClassifications(label);
-  const subjectLine = classifications
-    .map(entry => {
-      const subjects = entry.subjects.map(subject => SUBJECTS[subject] || subject).join(', ');
-      const medium = MEDIUMS[entry.medium] || entry.medium;
-      return `${label.dt_code || '-'} / Std ${entry.std} / ${medium} / ${subjects}`;
-    })
-    .join(' | ');
+  const classificationValue = String(label.classification_map || label.classifications || '').trim();
 
   return (
     <div
@@ -81,7 +74,7 @@ function LabelCard({ label, serialNo }: { label: any; serialNo: number }) {
       </div>
 
       <div className="border px-5 border-[#99a6b7] bg-[#e9edf2] py-0.5 text-[13px] font-semibold leading-5 text-[#1f3650] mt-auto">
-        {subjectLine || '-'}
+        <div className="whitespace-pre-line break-all">{classificationValue || '-'}</div>
       </div>
     </div>
   );

@@ -11,7 +11,7 @@ import {
   SCHOOL_TYPES,
   SUBJECT_STANDARD_MAP,
 } from '@/lib/types';
-import { flattenClassifications, getTeacherClassifications } from '@/lib/teacherClassifications';
+import { flattenClassifications, getTeacherClassifications, serializeClassificationMap } from '@/lib/teacherClassifications';
 import { teachersApi } from '@/lib/api';
 import toast from 'react-hot-toast';
 
@@ -255,6 +255,7 @@ export default function TeacherFormModal({ teacher, onClose, onSaved }: Props) {
       const payload = {
         ...form,
         classifications: normalizedClassifications,
+        classification_map: serializeClassificationMap(normalizedClassifications),
         std: flattened.std,
         medium: flattened.medium,
         sub_code: flattened.sub_code,

@@ -64,7 +64,34 @@ function validatePincode($pin): bool {
 function parseClassificationEntries($value): array {
     if (is_string($value) && trim($value) !== '') {
         $decoded = json_decode($value, true);
-        if (json_last_error() === JSON_ERROR_NONE) $value = $decoded;
+        if (json_last_error() === JSON_ERROR_NONE && is_array($decoded)) {
+            $value = $decoded;
+        } else {
+            $entries = [];
+            foreach (explode(';', $value) as $rawEntry) {
+                $rawEntry = trim($rawEntry);
+                if ($rawEntry === '') continue;
+
+                [$std, $medium, $subjectsRaw] = array_pad(array_map('trim', explode('|', $rawEntry, 3)), 3, '');
+                $subjects = array_values(array_unique(array_filter(array_map(
+                    'trim',
+                    explode(',', $subjectsRaw)
+                ), fn($subject) => array_key_exists($subject, SUBJECTS))));
+
+                if (!in_array($std, STANDARDS, true) || !array_key_exists($medium, MEDIUMS) || empty($subjects)) continue;
+
+                $subjects = array_values(array_filter($subjects, fn($subject) => in_array($std, SUBJECT_STANDARD_MAP[$subject] ?? STANDARDS, true)));
+                if (empty($subjects)) continue;
+
+                $entries[] = [
+                    'std' => $std,
+                    'medium' => $medium,
+                    'subjects' => $subjects,
+                ];
+            }
+
+            return $entries;
+        }
     }
 
     if (!is_array($value)) return [];
@@ -126,7 +153,7 @@ function deriveLegacyClassifications(array $body): array {
 }
 
 function getTeacherClassificationsFromBody(array $body): array {
-    $entries = parseClassificationEntries($body['classifications'] ?? null);
+    $entries = parseClassificationEntries($body['classification_map'] ?? ($body['classifications'] ?? null));
     if (!empty($entries)) return $entries;
     return deriveLegacyClassifications($body);
 }
@@ -142,11 +169,16 @@ function flattenClassifications(array $entries): array {
         foreach ($entry['subjects'] as $subject) $subjects[] = $subject;
     }
 
+    $classificationMap = implode(';', array_map(
+        fn($entry) => $entry['std'] . '|' . $entry['medium'] . '|' . implode(',', array_values(array_unique($entry['subjects']))),
+        array_values($entries)
+    ));
+
     return [
         'sub_code' => implode(',', array_values(array_unique($subjects))),
         'std' => implode(',', array_values(array_unique($standards))),
         'medium' => implode(',', array_values(array_unique($mediums))),
-        'classifications' => json_encode(array_values($entries), JSON_UNESCAPED_UNICODE),
+        'classifications' => $classificationMap,
     ];
 }
 
@@ -161,6 +193,7 @@ function expandTeacher(array $teacher): array {
     }
 
     $teacher['classifications'] = $classifications;
+    $teacher['classification_map'] = flattenClassifications($classifications)['classifications'];
     return $teacher;
 }
 

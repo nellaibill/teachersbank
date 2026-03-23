@@ -15,7 +15,27 @@ switch ($type) {
 function parseReportClassifications($value): array {
     if (is_string($value) && trim($value) !== '') {
         $decoded = json_decode($value, true);
-        if (json_last_error() === JSON_ERROR_NONE) $value = $decoded;
+        if (json_last_error() === JSON_ERROR_NONE && is_array($decoded)) {
+            $value = $decoded;
+        } else {
+            $entries = [];
+            foreach (explode(';', $value) as $rawEntry) {
+                $rawEntry = trim($rawEntry);
+                if ($rawEntry === '') continue;
+
+                [$std, $medium, $subjectsRaw] = array_pad(array_map('trim', explode('|', $rawEntry, 3)), 3, '');
+                $subjects = array_values(array_filter(array_map('trim', explode(',', $subjectsRaw))));
+                if ($std === '' || $medium === '' || empty($subjects)) continue;
+
+                $entries[] = [
+                    'std' => $std,
+                    'medium' => $medium,
+                    'subjects' => $subjects,
+                ];
+            }
+
+            return $entries;
+        }
     }
 
     return is_array($value) ? array_values($value) : [];
@@ -25,6 +45,7 @@ function expandReportTeacherRow(array $row): array {
     $row['sub_code_arr'] = $row['sub_code'] ? explode(',', $row['sub_code']) : [];
     $row['std_arr'] = $row['std'] ? explode(',', $row['std']) : [];
     $row['medium_arr'] = $row['medium'] ? explode(',', $row['medium']) : [];
+    $row['classification_map'] = $row['classifications'] ?? '';
     $row['classifications'] = parseReportClassifications($row['classifications'] ?? null);
     return $row;
 }
