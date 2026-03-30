@@ -214,9 +214,9 @@ function dispatchReport() {
 
     $sql = "
         SELECT 
-            d.id AS dispatch_id, d.dispatch_date, d.pod_date, d.status,
+            d.id AS dispatch_id, d.dispatch_date, d.delivered_date, d.pod_date, d.status,
             t.teacher_name, t.contact_number, t.school_name, t.barcode,
-            t.dt_code, t.sub_code, t.medium, t.std, t.school_type,
+            t.dt_code, t.sub_code, t.medium, t.std, t.school_type, t.classifications,
             t.address_1, t.address_2, t.address_3,
             (SELECT GROUP_CONCAT(f.followup_level ORDER BY f.followup_level) 
              FROM followups f WHERE f.dispatch_id = d.id) AS followup_levels,

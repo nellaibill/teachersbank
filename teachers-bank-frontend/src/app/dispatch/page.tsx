@@ -80,18 +80,29 @@ function ScanResult({ result, onClear }: { result: any; onClear: () => void }) {
 
 // ── Update Dispatch Modal ─────────────────────────────────────────────────────
 function UpdateDispatchModal({ dispatch, onClose, onSaved }: { dispatch: Dispatch; onClose: () => void; onSaved: () => void }) {
+  const [delivered_date, setDeliveredDate] = useState(dispatch.delivered_date || '');
   const [pod_date, setPodDate] = useState(dispatch.pod_date || '');
   const [status, setStatus]   = useState(dispatch.status);
-  const [po_number, setPoNumber] = useState(dispatch.po_number || ''); // ← NEW
   const [saving, setSaving]   = useState(false);
+  const isDelivered = status === 'Delivered';
+  const minDeliveryDate = dispatch.dispatch_date;
 
   async function handleSave() {
+    if (isDelivered && !delivered_date) {
+      toast.error('Delivery date is required when status is Delivered');
+      return;
+    }
+    if (isDelivered && delivered_date < minDeliveryDate) {
+      toast.error('Delivery date cannot be before dispatch date');
+      return;
+    }
+
     setSaving(true);
     try {
       await dispatchApi.update(dispatch.id, {
-        pod_date:  pod_date  || undefined,
+        delivered_date: isDelivered ? delivered_date : (delivered_date || undefined),
+        pod_date: pod_date || undefined,
         status,
-        po_number: po_number || undefined, // ← NEW
       });
       toast.success('Dispatch updated');
       onSaved(); onClose();
@@ -115,19 +126,30 @@ function UpdateDispatchModal({ dispatch, onClose, onSaved }: { dispatch: Dispatc
               <option>Returned</option>
             </select>
           </div>
+          {isDelivered && (
+            <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-lg">
+              <label className="form-label text-emerald-900 font-semibold">Delivery Date *</label>
+              <input 
+                type="date" 
+                className="form-input" 
+                value={delivered_date} 
+                onChange={e => setDeliveredDate(e.target.value)}
+                min={minDeliveryDate}
+                required
+              />
+              <p className="text-xs text-emerald-700 mt-2">Date when the teacher received the materials</p>
+            </div>
+          )}
           <div>
-            <label className="form-label">POD Date</label>
-            <input type="date" className="form-input" value={pod_date} onChange={e => setPodDate(e.target.value)} />
-          </div>
-          {/* ── PO Number ── NEW ──────────────────────────────────────── */}
-          <div>
-            <label className="form-label">POD Number</label>
-            <input
-              className="form-input"
-              value={po_number}
-              onChange={e => setPoNumber(e.target.value)}
-              placeholder="Proof of delivery number (optional)"
+            <label className="form-label">POD Date (Proof of Delivery)</label>
+            <input 
+              type="date" 
+              className="form-input" 
+              value={pod_date} 
+              onChange={e => setPodDate(e.target.value)}
+              placeholder="Optional: When proof of delivery was received"
             />
+            <p className="text-xs text-ink-400 mt-1">When official proof of delivery was received (can be later than delivery date)</p>
           </div>
           <div className="flex gap-3 pt-2">
             <button onClick={onClose} className="btn-secondary btn flex-1">Cancel</button>
@@ -200,7 +222,7 @@ export default function DispatchPage() {
         dispatch.contact_number || '',
         dispatch.barcode || '',
         dispatch.dispatch_date ? formatDate(dispatch.dispatch_date) : '',
-        dispatch.po_number || '',
+        dispatch.delivered_date ? formatDate(dispatch.delivered_date) : '',
         dispatch.pod_date ? formatDate(dispatch.pod_date) : '',
         dispatch.status,
         dispatch.followup_count ?? 0,
@@ -209,7 +231,7 @@ export default function DispatchPage() {
       const filenameDate = filterDate || today();
       downloadExcelFile(
         `dispatch-report-${filenameDate}.xls`,
-        ['Sl. No.', 'Teacher', 'School', 'Contact', 'Barcode', 'Dispatch Date', 'POD Number', 'POD Date', 'Status', 'Follow-ups'],
+        ['Sl. No.', 'Teacher', 'School', 'Contact', 'Barcode', 'Dispatch Date', 'Delivered Date', 'POD Date', 'Status', 'Follow-ups'],
         rows,
       );
       toast.success(`Exported ${allDispatches.length} dispatch record${allDispatches.length === 1 ? '' : 's'}`);
@@ -337,6 +359,7 @@ export default function DispatchPage() {
                       <th>POD Number</th>
                       <th>POD Date</th>
                       <th>Status</th>
+                      <th>Delivered Date</th>
                       <th>Follow-ups</th>
                       <th className="text-right">Action</th>
                     </tr>
@@ -349,10 +372,10 @@ export default function DispatchPage() {
                           <p className="font-medium text-ink-900 text-sm">{d.teacher_name}</p>
                           <p className="text-xs text-ink-400 truncate max-w-[160px]">{d.school_name}</p>
                         </td>
-                         <td className="text-sm text-ink-600 whitespace-nowrap">{d.po_number ? d.po_number : <span className="text-ink-300">—</span>}</td>
 
                         <td className="text-sm text-ink-600 whitespace-nowrap">{d.pod_date ? formatDate(d.pod_date) : <span className="text-ink-300">—</span>}</td>
-                                               <td>
+                       
+                        <td>
                           <span className={`badge text-xs ${
                             d.status === 'Delivered' ? 'bg-emerald-100 text-emerald-700' :
                             d.status === 'Returned'  ? 'bg-rose-100 text-rose-600' :
@@ -360,6 +383,8 @@ export default function DispatchPage() {
                             {d.status}
                           </span>
                         </td>
+
+                        <td className="text-sm text-ink-600 whitespace-nowrap">{d.delivered_date ? formatDate(d.delivered_date) : <span className="text-ink-300">—</span>}</td>
                         <td>
                           {(d.followup_count ?? 0) > 0 ? (
                             <span className="badge bg-amber-100 text-amber-700 text-xs">

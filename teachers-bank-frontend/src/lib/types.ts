@@ -30,9 +30,9 @@ export interface Dispatch {
   id: number;
   teacher_id: number;
   dispatch_date: string;
+  delivered_date?: string;
   pod_date?: string;
   status: 'Dispatched' | 'Delivered' | 'Returned';
-  po_number?: string;         // ← NEW
   created_at: string;
   updated_at: string;
   teacher_name?: string;
@@ -55,14 +55,22 @@ export interface Followup {
   created_at: string;
   updated_at: string;
   dispatch_date?: string;
+  delivered_date?: string;
   pod_date?: string;
   dispatch_status?: string;
   teacher_name?: string;
   contact_number?: string;
   school_name?: string;
   teacher_address?: string;
+  address_1?: string;
+  address_2?: string;
+  address_3?: string;
   pincode?: string;
+  dt_code?: string;
+  std?: string;
+  medium?: string;
   barcode?: string;
+  classifications?: TeacherClassification[] | string;
   level_history?: Array<{
     id: number;
     followup_level: number;

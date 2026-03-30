@@ -94,7 +94,7 @@ function listFollowups() {
         SELECT f.*, d.dispatch_date, d.pod_date, d.status AS dispatch_status,
                t.teacher_name, t.contact_number, t.school_name,
                t.teacher_address, t.pincode, t.barcode,
-               t.dt_code, t.sub_code, t.medium, t.std
+               t.dt_code, t.sub_code, t.medium, t.std, t.classifications
         $baseJoin
         JOIN dispatch d ON f.dispatch_id = d.id
         JOIN teachers t ON d.teacher_id = t.id
@@ -126,7 +126,7 @@ function getFollowup($id) {
         SELECT f.*, d.dispatch_date, d.pod_date, d.status AS dispatch_status,
                t.teacher_name, t.contact_number, t.school_name,
                t.teacher_address, t.pincode, t.barcode,
-               t.dt_code, t.sub_code, t.medium, t.std
+               t.dt_code, t.sub_code, t.medium, t.std, t.classifications
         FROM followups f
         JOIN dispatch d ON f.dispatch_id = d.id
         JOIN teachers t ON d.teacher_id = t.id

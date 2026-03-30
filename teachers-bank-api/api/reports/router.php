@@ -172,7 +172,7 @@ function dispatchReport() {
         SELECT d.id AS dispatch_id, d.dispatch_date, d.pod_date, d.status,
                t.teacher_name, t.contact_number, t.school_name, t.barcode,
                t.dt_code, t.sub_code, t.medium, t.std, t.school_type,
-               t.teacher_address, t.pincode,
+               t.teacher_address, t.pincode, t.classifications,
                (SELECT GROUP_CONCAT(f.followup_level ORDER BY f.followup_level)
                 FROM followups f WHERE f.dispatch_id = d.id) AS followup_levels,
                (SELECT f.status FROM followups f WHERE f.dispatch_id = d.id

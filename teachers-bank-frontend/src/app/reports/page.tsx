@@ -52,6 +52,7 @@ function ReportFilterHeader({ reportType, filters, total }: { reportType: string
 
 function LabelCard({ label, serialNo }: { label: any; serialNo: number }) {
   const districtWithPin = ['', label.pincode].filter(Boolean).join(' - ');
+  const districtCode = label.dt_code || '-';
   const classificationValue = String(label.classification_map || label.classifications || '').trim();
 
   return (
@@ -70,11 +71,25 @@ function LabelCard({ label, serialNo }: { label: any; serialNo: number }) {
 
         <p className="text-[13px] px-5 font-semibold leading-tight">{label.teacher_name || '-'}</p>
         <p className="mt-0.5 px-5 text-[10px] leading-snug whitespace-pre-line">{label.teacher_address || '-'} - {districtWithPin}</p>
-        <p className="mt-0.5 px-5 text-[12px] font-semibold">Ph: {label.contact_number || '-'}</p>
+        <p className="mt-0.5 px-5 text-[12px] font-semibold">Ph: {label.contact_number || '-'}  </p>
       </div>
 
       <div className="border px-5 border-[#99a6b7] bg-[#e9edf2] py-0.5 text-[13px] font-semibold leading-5 text-[#1f3650] mt-auto">
-        <div className="whitespace-pre-line break-all">{classificationValue || '-'}</div>
+        <div className="whitespace-pre-line break-all">
+          {districtCode} - {classificationValue
+            ? classificationValue.split(';').map((item, idx, arr) => {
+                const trimmed = item.trim();
+                // Even-numbered (0,2,4...) bold, odd-numbered (1,3,5...) normal
+                const isEven = idx % 2 === 0;
+                return (
+                  <span key={idx} style={{ fontWeight: isEven ? 'bold' : 'normal' }}>
+                    {trimmed}
+                    {idx < arr.length - 1 && '; '}
+                  </span>
+                );
+              })
+            : '-'}
+        </div>
       </div>
     </div>
   );
@@ -488,7 +503,7 @@ function ReportsContent() {
             <div className="overflow-x-auto">
               <table className="data-table dispatch-report-table">
                 <thead>
-                  <tr><th>Teacher</th><th>Barcode</th><th>Dispatch Date</th><th>POD Date</th><th>Status</th><th>Latest Followup</th></tr>
+                  <tr><th>Teacher</th><th>Barcode</th><th>Classifications</th><th>Dispatch Date</th><th>Delivered Date</th><th>POD Date</th><th>Status</th><th>Latest Followup</th></tr>
                 </thead>
                 {data.map((r: any) => (
                   <tbody key={r.dispatch_id}>
@@ -499,7 +514,21 @@ function ReportsContent() {
                           <p className="text-xs text-ink-400">{r.school_name}</p>
                         </td>
                         <td className="font-mono text-xs text-ink-500">{r.barcode}</td>
+                        <td className="text-xs text-ink-700 whitespace-pre-wrap">
+                          {!r.classifications ? '-' : (() => {
+                            try {
+                              const parsed = JSON.parse(r.classifications);
+                              if (Array.isArray(parsed)) {
+                                return parsed.map(c => `${c.std}-${c.medium.toUpperCase()}: ${c.subjects.join(', ')}`).join('\n');
+                              }
+                            } catch (e) {
+                              return String(r.classifications).trim();
+                            }
+                            return String(r.classifications).trim();
+                          })()}
+                        </td>
                         <td className="text-sm whitespace-nowrap">{formatDate(r.dispatch_date)}</td>
+                        <td className="text-sm whitespace-nowrap">{r.delivered_date ? formatDate(r.delivered_date) : '-'}</td>
                         <td className="text-sm whitespace-nowrap">{r.pod_date ? formatDate(r.pod_date) : '-'}</td>
                         <td>
                           <span className={`badge text-xs ${
