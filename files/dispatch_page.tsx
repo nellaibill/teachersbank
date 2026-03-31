@@ -45,17 +45,45 @@ function ScanResult({ result, onClear }: { result: any; onClear: () => void }) {
 function UpdateDispatchModal({ dispatch, onClose, onSaved }: { dispatch: Dispatch; onClose: () => void; onSaved: () => void }) {
   const [pod_date, setPodDate] = useState(dispatch.pod_date || '');
   const [status, setStatus]   = useState(dispatch.status);
-  const [po_number, setPoNumber] = useState(dispatch.po_number || ''); // ← NEW
+  const [po_number, setPoNumber] = useState(dispatch.po_number || '');
+  const [delivered_date, setDeliveredDate] = useState(dispatch.delivered_date || '');
   const [saving, setSaving]   = useState(false);
+  const isDelivered = status === 'Delivered';
+  const isDispatched = status === 'Dispatched';
+  const minDeliveryDate = dispatch.dispatch_date;
 
   async function handleSave() {
+    // Validation for Delivered status
+    if (isDelivered && !delivered_date) {
+      toast.error('Delivery date is required when status is Delivered');
+      return;
+    }
+    if (isDelivered && delivered_date < minDeliveryDate) {
+      toast.error('Delivery date cannot be before dispatch date');
+      return;
+    }
+
+    // Validation for Dispatched status
+    if (isDispatched && !po_number) {
+      toast.error('POD Number is required when status is Dispatched');
+      return;
+    }
+
     setSaving(true);
     try {
-      await dispatchApi.update(dispatch.id, {
-        pod_date:  pod_date  || undefined,
-        status,
-        po_number: po_number || undefined, // ← NEW
-      });
+      const updateData: any = { status };
+      
+      if (isDelivered) {
+        updateData.delivered_date = delivered_date;
+      }
+      if (isDispatched) {
+        updateData.po_number = po_number;
+      }
+      if (pod_date) {
+        updateData.pod_date = pod_date;
+      }
+
+      await dispatchApi.update(dispatch.id, updateData);
       toast.success('Dispatch updated');
       onSaved(); onClose();
     } catch (e: any) { toast.error(e.message); } finally { setSaving(false); }
@@ -78,26 +106,60 @@ function UpdateDispatchModal({ dispatch, onClose, onSaved }: { dispatch: Dispatc
               <option>Returned</option>
             </select>
           </div>
+
+          {/* ── POD Number Field (for Dispatched) ──────────────────────────────────*/}
+          {isDispatched && (
+            <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
+              <label className="form-label text-blue-900 font-semibold">POD Number *</label>
+              <input
+                className="form-input"
+                value={po_number}
+                onChange={e => setPoNumber(e.target.value)}
+                placeholder="Proof of delivery number"
+              />
+            </div>
+          )}
+
+          {/* ── Delivery Date Field (for Delivered) ────────────────────────────*/}
+          {isDelivered && (
+            <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-lg">
+              <label className="form-label text-emerald-900 font-semibold">Delivery Date *</label>
+              <input 
+                type="date" 
+                className="form-input" 
+                value={delivered_date} 
+                onChange={e => setDeliveredDate(e.target.value)}
+                min={minDeliveryDate}
+                required
+              />
+              <p className="text-xs text-emerald-700 mt-2">Date when the teacher received the materials</p>
+            </div>
+          )}
+
+          {/* ── POD Date (Always shown) ────────────────────────────────────────*/}
           <div>
-            <label className="form-label">POD Date</label>
-            <input type="date" className="form-input" value={pod_date} onChange={e => setPodDate(e.target.value)} />
-          </div>
-          {/* ── PO Number ── NEW ──────────────────────────────────────── */}
-          <div>
-            <label className="form-label">PO Number</label>
-            <input
-              className="form-input"
-              value={po_number}
-              onChange={e => setPoNumber(e.target.value)}
-              placeholder="Purchase order number (optional)"
+            <label className="form-label">POD Date (Proof of Delivery)</label>
+            <input 
+              type="date" 
+              className="form-input" 
+              value={pod_date} 
+              onChange={e => setPodDate(e.target.value)}
+              placeholder="Optional: When proof of delivery was received"
             />
+            <p className="text-xs text-ink-400 mt-1">When official proof of delivery was received (can be later than delivery date)</p>
           </div>
+
           <div className="flex gap-3 pt-2">
             <button onClick={onClose} className="btn-secondary btn flex-1">Cancel</button>
             <button onClick={handleSave} disabled={saving} className="btn-primary btn flex-1">
               {saving && <Loader2 size={14} className="animate-spin" />} Save
             </button>
           </div>
+        </div>
+      </div>
+    </div>
+  );
+}
         </div>
       </div>
     </div>
@@ -239,8 +301,11 @@ export default function DispatchPage() {
                 <table className="data-table">
                   <thead>
                     <tr>
+                      <th>Sl. No.</th>
                       <th>Teacher</th>
                       <th>Dispatch Date</th>
+                      <th>POD Number</th>
+                      <th>Delivered Date</th>
                       <th>POD Date</th>
                       <th>Status</th>
                       <th>Follow-ups</th>
@@ -250,11 +315,14 @@ export default function DispatchPage() {
                   <tbody>
                     {dispatches.map((d, idx) => (
                       <tr key={d.id} style={{ animationDelay: `${idx * 25}ms` }} className="animate-fade-in">
+                        <td className="text-sm text-ink-500 whitespace-nowrap">{(page - 1) * (pagination?.limit || 20) + idx + 1}</td>
                         <td>
                           <p className="font-medium text-ink-900 text-sm">{d.teacher_name}</p>
                           <p className="text-xs text-ink-400 truncate max-w-[160px]">{d.school_name}</p>
                         </td>
                         <td className="text-sm text-ink-600 whitespace-nowrap">{formatDate(d.dispatch_date)}</td>
+                        <td className="text-sm text-ink-600 whitespace-nowrap">{d.po_number ? d.po_number : <span className="text-ink-300">—</span>}</td>
+                        <td className="text-sm text-ink-600 whitespace-nowrap">{d.delivered_date ? formatDate(d.delivered_date) : <span className="text-ink-300">—</span>}</td>
                         <td className="text-sm text-ink-600 whitespace-nowrap">{d.pod_date ? formatDate(d.pod_date) : <span className="text-ink-300">—</span>}</td>
                         <td>
                           <span className={`badge text-xs ${

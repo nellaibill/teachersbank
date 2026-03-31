@@ -1,12 +1,15 @@
 # Teachers Bank Application — Comprehensive Analysis
 
-**Document Date:** March 28, 2026  
+**Document Date:** March 30, 2026  
 **Purpose:** Complete reference guide for understanding the Teachers Bank system architecture, workflows, and implementation details.
 
-### Recent Changes (March 28, 2026)
-- **Label Report Enhancement**: Added district code display to mailing labels
-- **Follow-ups Report**: Added Classifications column to follow-ups list
-- **Dispatch Update**: Added conditional Delivery Date field when status is set to "Delivered"
+### Recent Changes (March 30, 2026)
+- **Dispatch Update Restoration**: Restored and enhanced dispatch update functionality
+  - Re-added PO Number and PO Date fields (shown when status = "Dispatched")
+  - Added Delivery Date field (shown when status = "Delivered")
+  - Added validation: PO fields required for "Dispatched" status, Delivery Date required for "Delivered" status
+  - Updated dispatch list table to show PO Number and Delivered Date columns
+  - Created migration v6 to add po_date column to dispatch table
 
 ---
 

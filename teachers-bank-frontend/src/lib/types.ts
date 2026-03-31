@@ -32,6 +32,7 @@ export interface Dispatch {
   dispatch_date: string;
   delivered_date?: string;
   pod_date?: string;
+  po_number?: string;
   status: 'Dispatched' | 'Delivered' | 'Returned';
   created_at: string;
   updated_at: string;

@@ -116,13 +116,39 @@ function getDispatch($id) {
 // ── PUT /api/dispatch/{id} ────────────────────────────────────────────────────
 function updateDispatch($id) {
     $body = getRequestBody(); $conn = getDBConnection();
-    $chk  = $conn->prepare("SELECT id FROM dispatch WHERE id = ?");
+    $chk  = $conn->prepare("SELECT id, dispatch_date, status, po_number, delivered_date FROM dispatch WHERE id = ?");
     $chk->bind_param('i', $id); $chk->execute();
-    if (!$chk->get_result()->fetch_assoc()) sendError('Dispatch not found', 404);
+    $currentDispatch = $chk->get_result()->fetch_assoc();
+    if (!$currentDispatch) sendError('Dispatch not found', 404);
+
+    // Validate: If status is Delivered, delivered_date is required
+    $newStatus = $body['status'] ?? $currentDispatch['status'];
+    if ($newStatus === 'Delivered' && empty($body['delivered_date']) && empty($currentDispatch['delivered_date'])) {
+        sendError('Delivery date is required when status is Delivered', 422);
+    }
+
+    // Validate: If status is Dispatched, po_number is required (if not already set)
+    if ($newStatus === 'Dispatched') {
+        $poNumberNeeded = empty($body['po_number']) && empty($currentDispatch['po_number']);
+        if ($poNumberNeeded) {
+            sendError('PO number is required when status is Dispatched', 422);
+        }
+    }
+
+    // Validate: Delivery date cannot be before dispatch date
+    if (!empty($body['delivered_date']) && $newStatus === 'Delivered') {
+        $deliveredDate = DateTime::createFromFormat('Y-m-d', $body['delivered_date']);
+        $dispatchDate = DateTime::createFromFormat('Y-m-d', $currentDispatch['dispatch_date']);
+        if (!$deliveredDate || $deliveredDate->format('Y-m-d') !== $body['delivered_date']) {
+            sendError('Delivery date must be a valid date in YYYY-MM-DD format', 422);
+        }
+        if ($deliveredDate < $dispatchDate) {
+            sendError('Delivery date cannot be before dispatch date', 422);
+        }
+    }
 
     $sets = []; $params = []; $types = '';
-    // ── po_number added to allowed updatable fields ──────────────────────────
-    foreach (['pod_date', 'status', 'po_number'] as $field) {
+    foreach (['delivered_date', 'pod_date', 'status', 'po_number'] as $field) {
         if (isset($body[$field])) {
             $sets[]   = "$field = ?";
             $params[] = $body[$field];
