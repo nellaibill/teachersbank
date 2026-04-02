@@ -208,49 +208,70 @@ export default function DispatchPage() {
   const [loading, setLoading]           = useState(true);
   const [exporting, setExporting]       = useState(false);
   const [page, setPage]                 = useState(1);
-  const [filterDate, setFilterDate]     = useState('');
+  const [filterFromDate, setFilterFromDate] = useState('');
+  const [filterToDate, setFilterToDate]     = useState('');
   const [filterStatus, setFilterStatus] = useState('');
+  const [searchQuery, setSearchQuery]   = useState('');
   const [updateTarget, setUpdateTarget] = useState<Dispatch | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const loadDispatches = useCallback(async () => {
     setLoading(true);
     try {
-      const params: any = { page, limit: 20 };
-      if (filterDate)   params.date   = filterDate;
+      // When filters are applied, load all data; otherwise use pagination
+      const hasFilters = filterFromDate || filterToDate || filterStatus || searchQuery;
+      const params: any = hasFilters ? { limit: 1000, page: 1 } : { page, limit: 20 };
       if (filterStatus) params.status = filterStatus;
+      if (filterFromDate) params.from_date = filterFromDate;
+      if (filterToDate) params.to_date = filterToDate;
+      if (searchQuery) params.search = searchQuery;
       const res = await dispatchApi.list(params);
       setDispatches(res.data?.dispatches ?? []);
       setPagination(res.data?.pagination ?? null);
     } catch (e: any) { toast.error(e.message); }
     finally { setLoading(false); }
-  }, [page, filterDate, filterStatus]);
+  }, [page, filterStatus, filterFromDate, filterToDate, searchQuery]);
+
+  // Filter dispatches by search query (client-side only, since backend handles date & status)
+  const getFilteredAndPaginatedDispatches = useCallback(() => {
+    let filtered = [...dispatches];
+    const hasFilters = filterFromDate || filterToDate || searchQuery;
+
+    // Filter by search query (teacher name, contact number, POD number) - client side only
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase().trim();
+      filtered = filtered.filter(d => 
+        (d.teacher_name?.toLowerCase().includes(q)) ||
+        (String(d.contact_number || '').toLowerCase().includes(q)) ||
+        (String(d.po_number || '').toUpperCase().includes(q.toUpperCase()))
+      );
+    }
+
+    // Apply pagination only when filters are active (when backend returns all 1000 records)
+    let paginatedData = filtered;
+    if (hasFilters) {
+      const limit = pagination?.limit || 20;
+      const offset = (page - 1) * limit;
+      paginatedData = filtered.slice(offset, offset + limit);
+    }
+
+    return { filtered, paginatedData };
+  }, [dispatches, filterFromDate, filterToDate, searchQuery, page, pagination?.limit]);
 
   useEffect(() => { loadDispatches(); }, [loadDispatches]);
 
-  const exportDispatches = useCallback(async () => {
+  const exportDispatches = useCallback(() => {
     setExporting(true);
     try {
-      const baseParams: Record<string, string | number> = { limit: 100 };
-      if (filterDate) baseParams.date = filterDate;
-      if (filterStatus) baseParams.status = filterStatus;
+      const { filtered } = getFilteredAndPaginatedDispatches();
 
-      const firstPage = await dispatchApi.list({ ...baseParams, page: 1 });
-      const firstDispatches = firstPage.data?.dispatches ?? [];
-      const totalPages = firstPage.data?.pagination?.total_pages ?? 1;
-      const allDispatches: Dispatch[] = [...firstDispatches];
-
-      for (let currentPage = 2; currentPage <= totalPages; currentPage += 1) {
-        const nextPage = await dispatchApi.list({ ...baseParams, page: currentPage });
-        allDispatches.push(...(nextPage.data?.dispatches ?? []));
-      }
-
-      if (allDispatches.length === 0) {
+      if (filtered.length === 0) {
         toast.error('No dispatch data available to export');
+        setExporting(false);
         return;
       }
 
-      const rows = allDispatches.map((dispatch, index) => [
+      const rows = filtered.map((dispatch, index) => [
         index + 1,
         dispatch.teacher_name || '',
         dispatch.school_name || '',
@@ -260,22 +281,22 @@ export default function DispatchPage() {
         dispatch.delivered_date ? formatDate(dispatch.delivered_date) : '',
         dispatch.pod_date ? formatDate(dispatch.pod_date) : '',
         dispatch.status,
-        dispatch.followup_count ?? 0,
+        dispatch.po_number || '',
       ]);
 
-      const filenameDate = filterDate || today();
+      const filenameDate = filterFromDate || today();
       downloadExcelFile(
         `dispatch-report-${filenameDate}.xls`,
-        ['Sl. No.', 'Teacher', 'School', 'Contact', 'Barcode', 'Dispatch Date', 'Delivered Date', 'POD Date', 'Status', 'Follow-ups'],
+        ['Sl. No.', 'Teacher', 'School', 'Contact', 'Barcode', 'Dispatch Date', 'Delivered Date', 'POD Date', 'Status', 'POD Number'],
         rows,
       );
-      toast.success(`Exported ${allDispatches.length} dispatch record${allDispatches.length === 1 ? '' : 's'}`);
+      toast.success(`Exported ${filtered.length} dispatch record${filtered.length === 1 ? '' : 's'}`);
     } catch (e: any) {
       toast.error(e.message || 'Failed to export dispatch data');
     } finally {
       setExporting(false);
     }
-  }, [filterDate, filterStatus]);
+  }, [getFilteredAndPaginatedDispatches]);
 
   async function handleScan(e: React.FormEvent) {
     e.preventDefault();
@@ -350,40 +371,65 @@ export default function DispatchPage() {
         {/* Dispatch list */}
         <div className="space-y-4">
           {/* Filters */}
-          <div className="card p-3 flex gap-3 flex-wrap">
-            <div className="flex items-center gap-2 flex-1 min-w-[140px]">
-              <Calendar size={14} className="text-ink-400 flex-shrink-0" />
-              <input type="date" className="form-input py-1.5 text-sm" value={filterDate}
-                onChange={e => { setFilterDate(e.target.value); setPage(1); }} />
+          <div className="card p-3 space-y-3">
+            {/* Date filters and status */}
+            <div className="flex gap-3 flex-wrap items-end">
+              <div>
+                <label className="form-label text-xs">From Date</label>
+                <input type="date" className="form-input py-1.5 text-sm" value={filterFromDate}
+                  onChange={e => { setFilterFromDate(e.target.value); setPage(1); }} />
+              </div>
+              <div>
+                <label className="form-label text-xs">To Date</label>
+                <input type="date" className="form-input py-1.5 text-sm" value={filterToDate}
+                  onChange={e => { setFilterToDate(e.target.value); setPage(1); }} />
+              </div>
+              <select className="form-select py-1.5 text-sm flex-1 min-w-[120px]" value={filterStatus}
+                onChange={e => { setFilterStatus(e.target.value); setPage(1); }}>
+                <option value="">All Status</option>
+                <option>Dispatched</option>
+                <option>Delivered</option>
+                <option>Returned</option>
+              </select>
+              {(filterFromDate || filterToDate || filterStatus) && (
+                <button onClick={() => { setFilterFromDate(''); setFilterToDate(''); setFilterStatus(''); setPage(1); }}
+                  className="btn-ghost btn btn-sm">
+                  <X size={13} /> Clear Filters
+                </button>
+              )}
             </div>
-            <select className="form-select py-1.5 text-sm flex-1 min-w-[120px]" value={filterStatus}
-              onChange={e => { setFilterStatus(e.target.value); setPage(1); }}>
-              <option value="">All Status</option>
-              <option>Dispatched</option>
-              <option>Delivered</option>
-              <option>Returned</option>
-            </select>
-            {(filterDate || filterStatus) && (
-              <button onClick={() => { setFilterDate(''); setFilterStatus(''); setPage(1); }}
-                className="btn-ghost btn btn-sm">
-                <X size={13} /> Clear
+
+            {/* Search box */}
+            <div className="flex gap-3 items-end">
+              <div className="flex-1">
+                <label className="form-label text-xs">Search</label>
+                <input type="text" className="form-input py-1.5 text-sm" 
+                  value={searchQuery}
+                  onChange={e => { setSearchQuery(e.target.value); setPage(1); }}
+                  placeholder="Teacher name, contact number, or POD number" />
+              </div>
+              {searchQuery && (
+                <button onClick={() => setSearchQuery('')}
+                  className="btn-ghost btn btn-sm">
+                  <X size={13} /> Clear Search
+                </button>
+              )}
+              <button onClick={exportDispatches} disabled={exporting} className="btn-primary btn btn-sm">
+                {exporting ? <><Loader2 size={14} className="animate-spin" /> Exporting...</> : 'Download Excel'}
               </button>
-            )}
-            <button onClick={exportDispatches} disabled={exporting} className="btn-primary btn btn-sm">
-              {exporting ? <><Loader2 size={14} className="animate-spin" /> Exporting...</> : 'Download Excel'}
-            </button>
-            <button onClick={loadDispatches} className="btn-secondary btn btn-icon btn-sm">
-              <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
-            </button>
+              <button onClick={loadDispatches} className="btn-secondary btn btn-icon btn-sm">
+                <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
+              </button>
+            </div>
           </div>
 
           {/* Table */}
           <div className="card p-0 overflow-hidden">
             {loading ? (
               <div className="p-6 space-y-3">{Array(5).fill(0).map((_, i) => <div key={i} className="h-12 skeleton" />)}</div>
-            ) : dispatches.length === 0 ? (
+            ) : getFilteredAndPaginatedDispatches().filtered.length === 0 ? (
               <EmptyState icon={Package} title="No dispatches found"
-                description="Scan a barcode above to create the first dispatch" />
+                description={dispatches.length > 0 ? 'No results match your filters' : 'Scan a barcode above to create the first dispatch'} />
             ) : (
               <div className="overflow-x-auto">
                 <table className="data-table">
@@ -391,25 +437,37 @@ export default function DispatchPage() {
                     <tr>
                       <th>Sl. No.</th>
                       <th>Teacher</th>
+                      <th>Contact</th>
                       <th>Dispatch Date</th>
                       <th>POD Number</th>
                       <th>Delivered Date</th>
                       <th>POD Date</th>
                       <th>Status</th>
-                      <th>Follow-ups</th>
                       <th className="text-right">Action</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {dispatches.map((d, idx) => (
+                    {getFilteredAndPaginatedDispatches().paginatedData.map((d, idx) => (
                       <tr key={d.id} style={{ animationDelay: `${idx * 25}ms` }} className="animate-fade-in">
                         <td className="text-sm text-ink-500 whitespace-nowrap">{(page - 1) * (pagination?.limit || 20) + idx + 1}</td>
                         <td>
                           <p className="font-medium text-ink-900 text-sm">{d.teacher_name}</p>
                           <p className="text-xs text-ink-400 truncate max-w-[160px]">{d.school_name}</p>
                         </td>
+                        <td className="text-sm text-ink-600 whitespace-nowrap">{d.contact_number || '—'}</td>
                         <td className="text-sm text-ink-600 whitespace-nowrap">{formatDate(d.dispatch_date)}</td>
-                        <td className="text-sm text-ink-600 whitespace-nowrap">{d.po_number ? d.po_number : <span className="text-ink-300">—</span>}</td>
+                        <td className="text-sm text-ink-600 whitespace-nowrap">
+                          {d.po_number ? (
+                            <div className="flex items-center gap-2">
+                              <span>{d.po_number}</span>
+                              <a href={`https://www.tpcindia.com/CaptchaGate.aspx?id=${d.po_number}&type=0&service=0`}
+                                target="_blank" rel="noopener noreferrer"
+                                className="btn-ghost btn btn-sm text-brand-600 hover:text-brand-700">
+                                View
+                              </a>
+                            </div>
+                          ) : <span className="text-ink-300">—</span>}
+                        </td>
                         <td className="text-sm text-ink-600 whitespace-nowrap">{d.delivered_date ? formatDate(d.delivered_date) : <span className="text-ink-300">—</span>}</td>
                         <td className="text-sm text-ink-600 whitespace-nowrap">{d.pod_date ? formatDate(d.pod_date) : <span className="text-ink-300">—</span>}</td>
                         <td>
@@ -419,13 +477,6 @@ export default function DispatchPage() {
                             'bg-brand-100 text-brand-700'}`}>
                             {d.status}
                           </span>
-                        </td>
-                        <td>
-                          {(d.followup_count ?? 0) > 0 ? (
-                            <span className="badge bg-amber-100 text-amber-700 text-xs">
-                              {d.followup_count} followup{d.followup_count !== 1 ? 's' : ''}
-                            </span>
-                          ) : <span className="text-ink-300 text-xs">—</span>}
                         </td>
                         <td className="text-right">
                           <button onClick={() => setUpdateTarget(d)}
@@ -439,12 +490,24 @@ export default function DispatchPage() {
                 </table>
               </div>
             )}
-            {pagination && pagination.total_pages > 1 && (
-              <div className="px-4 pb-4">
-                <Pagination page={page} totalPages={pagination.total_pages}
-                  total={pagination.total} limit={pagination.limit} onChange={setPage} />
-              </div>
+
+            {pagination && (
+              (() => {
+                const { filtered } = getFilteredAndPaginatedDispatches();
+                // Only client-side search filtering affects pagination
+                const hasSearchFilter = !!searchQuery.trim();
+                const totalForDisplay = hasSearchFilter ? filtered.length : pagination.total;
+                const totalPagesForDisplay = hasSearchFilter ? Math.ceil(filtered.length / (pagination?.limit || 20)) : pagination.total_pages;
+                
+                return totalPagesForDisplay > 1 ? (
+                  <div className="px-4 pb-4">
+                    <Pagination page={page} totalPages={totalPagesForDisplay}
+                      total={totalForDisplay} limit={pagination.limit} onChange={setPage} />
+                  </div>
+                ) : null;
+              })()
             )}
+
           </div>
         </div>
       </div>
