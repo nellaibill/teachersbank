@@ -108,6 +108,7 @@ function UpdateFollowupModal({ followup, onClose, onSaved }: { followup: Followu
               <div className="flex-1">
                 <p className="font-bold text-ink-900 text-base">{followup.teacher_name}</p>
                 <p className="text-ink-600 text-xs mt-0.5">ID: {followup.barcode || 'N/A'}</p>
+                {followup.teacher_address && <p className="text-ink-600 text-xs mt-1"><span className="font-medium">Address:</span> {followup.teacher_address}</p>}
               </div>
             </div>
             
@@ -134,18 +135,10 @@ function UpdateFollowupModal({ followup, onClose, onSaved }: { followup: Followu
               </div>
             </div>
 
-            {/* Subject & Medium Information */}
-            <div className="border-t border-blue-100 pt-2">
-              <p className="text-xs font-semibold text-ink-700 uppercase mb-1.5">Subject & Medium</p>
-              <div className="space-y-1">
-                {followup.std && <p className="text-ink-700"><span className="font-medium">Standard:</span> {followup.std}</p>}
-                {followup.medium && <p className="text-ink-700"><span className="font-medium">Medium:</span> {followup.medium}</p>}
-              </div>
-            </div>
-
+     
             {/* Classifications Information */}
             <div className="border-t border-blue-100 pt-2">
-              <p className="text-xs font-semibold text-ink-700 uppercase mb-2">Classifications</p>
+              <p className="text-xs font-semibold text-ink-700 uppercase mb-2">Subject and Medium</p>
               {parsedClassifications.length > 0 ? (
                 <div className="space-y-2">
                   {parsedClassifications.map((classification: any, idx: number) => (
@@ -385,7 +378,7 @@ function FollowupsContent() {
                       >
                         <td>
                           <p className="font-medium text-ink-900 text-sm">{f.teacher_name}</p>
-                          <p className="text-xs text-ink-400 truncate max-w-[150px]">{f.school_name}</p>
+                          <p className="text-xs text-ink-400 break-words">{f.teacher_address || '—'}</p>
                         </td>
                         <td>
                           <a

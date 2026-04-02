@@ -134,7 +134,7 @@ function UpdateDispatchModal({ dispatch, onClose, onSaved }: { dispatch: Dispatc
           <button onClick={onClose} className="btn-icon btn-ghost"><X size={18} /></button>
         </div>
         <div className="px-5 py-4 space-y-4">
-          <p className="text-sm text-ink-600"><strong>{dispatch.teacher_name}</strong> — {formatDate(dispatch.dispatch_date)}</p>
+          <p className="text-sm text-ink-600"><strong>{dispatch.teacher_name}</strong> — {dispatch.teacher_address || 'N/A'}</p>
           <div>
             <label className="form-label">Status</label>
             <select className="form-select" value={status} onChange={e => setStatus(e.target.value as any)}>
@@ -214,6 +214,18 @@ export default function DispatchPage() {
   const [searchQuery, setSearchQuery]   = useState('');
   const [updateTarget, setUpdateTarget] = useState<Dispatch | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  // Handle Ctrl+B shortcut to focus barcode input
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'b') {
+        e.preventDefault();
+        inputRef.current?.focus();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
 
   const loadDispatches = useCallback(async () => {
     setLoading(true);
@@ -452,7 +464,7 @@ export default function DispatchPage() {
                         <td className="text-sm text-ink-500 whitespace-nowrap">{(page - 1) * (pagination?.limit || 20) + idx + 1}</td>
                         <td>
                           <p className="font-medium text-ink-900 text-sm">{d.teacher_name}</p>
-                          <p className="text-xs text-ink-400 truncate max-w-[160px]">{d.school_name}</p>
+                          <p className="text-xs text-ink-400 break-words">{d.teacher_address || '—'}</p>
                         </td>
                         <td className="text-sm text-ink-600 whitespace-nowrap">{d.contact_number || '—'}</td>
                         <td className="text-sm text-ink-600 whitespace-nowrap">{formatDate(d.dispatch_date)}</td>
