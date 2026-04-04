@@ -41,16 +41,18 @@ if (!$id && !empty($_GET['id'])) {
 
 // Enforce role-based access before routing.
 // Operators can only access dispatch routes (plus auth endpoints such as logout).
-$protectedResources = ['users', 'teachers', 'dispatch', 'followups', 'reports'];
+$protectedResources = ['users', 'teachers', 'dispatch', 'followups', 'reports', 'backup'];
 if (in_array($resource, $protectedResources, true)) {
     $authUser = requireAuth();
     if (($authUser['role'] ?? '') === 'operator' && $resource !== 'dispatch') {
-        sendError('Forbidden � operators can only access dispatch and logout routes', 403);
+        sendError('Forbidden � operators can only access dispatch and logout routes', 403);
     }
 }
 
 
 // ── Route ─────────────────────────────────────────────────────────────────────
+error_log('API routing: resource="' . $resource . '", segments=' . json_encode($segments));
+
 switch ($resource) {
 
     case 'auth':
@@ -83,6 +85,11 @@ switch ($resource) {
         require __DIR__ . '/api/reports/router.php';
         break;
 
+    case 'backup':
+        requireAdmin();
+        require __DIR__ . '/api/backup/router.php';
+        break;
+
     default:
         sendResponse([
             'success'  => true,
@@ -107,6 +114,7 @@ switch ($resource) {
                 'GET/POST /api/followups',
                 'GET/PUT  /api/followups/{id}',
                 'GET /api/reports?type=consolidated|label|dispatch|school_address',
+                'GET /api/backup',
             ]
         ]);
 }

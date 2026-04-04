@@ -254,21 +254,13 @@ function normaliseImportTeacherRow(array $row): array {
 }
 
 function findTeacherImportTargetId(mysqli $conn, array $body): ?int {
-    if (!empty($body['id'])) {
-        $stmt = $conn->prepare("SELECT id FROM teachers WHERE id = ? LIMIT 1");
-        $stmt->bind_param('i', $body['id']);
-        $stmt->execute();
-        $match = $stmt->get_result()->fetch_assoc();
-        if ($match) return (int)$match['id'];
-    }
+    if (empty($body['id'])) return null;
 
-    if (!empty($body['barcode'])) {
-        $stmt = $conn->prepare("SELECT id FROM teachers WHERE barcode = ? LIMIT 1");
-        $stmt->bind_param('s', $body['barcode']);
-        $stmt->execute();
-        $match = $stmt->get_result()->fetch_assoc();
-        if ($match) return (int)$match['id'];
-    }
+    $stmt = $conn->prepare("SELECT id FROM teachers WHERE id = ? LIMIT 1");
+    $stmt->bind_param('i', $body['id']);
+    $stmt->execute();
+    $match = $stmt->get_result()->fetch_assoc();
+    if ($match) return (int)$match['id'];
 
     return null;
 }
@@ -373,6 +365,7 @@ function importTeachersBody(array $body) {
         }
 
         $teacherBody = normaliseImportTeacherRow($row);
+
         $errors = validateTeacher($teacherBody);
         if ($errors) {
             $summary['errors'][] = [
@@ -384,14 +377,8 @@ function importTeachersBody(array $body) {
         }
 
         try {
-            $targetId = findTeacherImportTargetId($conn, $teacherBody);
-            if ($targetId !== null) {
-                updateImportedTeacher($conn, $targetId, $teacherBody);
-                $summary['updated']++;
-            } else {
-                insertImportedTeacher($conn, $teacherBody);
-                $summary['created']++;
-            }
+            insertImportedTeacher($conn, $teacherBody);
+            $summary['created']++;
         } catch (Throwable $e) {
             $summary['errors'][] = [
                 'row' => $index + 2,

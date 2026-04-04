@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useState, useCallback } from 'react';
-import { Plus, Edit2, UserX, Shield, User, Loader2, X, Eye, EyeOff, RefreshCw } from 'lucide-react';
-import { usersApi } from '@/lib/api';
+import { Plus, Edit2, UserX, Shield, User, Loader2, X, Eye, EyeOff, RefreshCw, Database } from 'lucide-react';
+import { usersApi, backupApi } from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
 import { formatDate, formatDateTime } from '@/lib/utils';
 import EmptyState from '@/components/ui/EmptyState';
@@ -159,6 +159,15 @@ export default function UsersPage() {
     } catch (e: any) { toast.error(e.message); }
   }
 
+  async function handleBackupDownload() {
+    try {
+      await backupApi.download();
+      toast.success('Database backup downloaded');
+    } catch (e: any) {
+      toast.error(e.message || 'Failed to download backup');
+    }
+  }
+
   if (!isAdmin) return null;
 
   return (
@@ -170,6 +179,9 @@ export default function UsersPage() {
           <p className="text-sm text-ink-500 mt-0.5">{users.length} users registered</p>
         </div>
         <div className="flex gap-2">
+          {/* <button  onClick={handleBackupDownload} className="btn-secondary btn">
+            <Database size={15} /> Download Backup
+          </button>*/}
           <button onClick={load} className="btn-secondary btn btn-icon">
             <RefreshCw size={15} className={loading ? 'animate-spin' : ''} />
           </button>

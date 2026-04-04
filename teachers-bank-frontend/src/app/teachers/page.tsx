@@ -1,7 +1,7 @@
 'use client';
-import { useEffect, useState, useCallback, Suspense } from 'react';
+import { useEffect, useState, useCallback, Suspense, useRef } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { Plus, Search, Filter, Edit2, Trash2, Eye, Phone, X, RefreshCw, Users } from 'lucide-react';
+import { Plus, Search, Filter, Edit2, Trash2, Eye, Phone, X, RefreshCw, Users, Upload, Loader2 } from 'lucide-react';
 import { teachersApi } from '@/lib/api';
 import { Teacher, Pagination as PaginationType, DISTRICTS, SUBJECTS, MEDIUMS, STANDARDS, SCHOOL_TYPES } from '@/lib/types';
 import { getTeacherClassifications } from '@/lib/teacherClassifications';
@@ -10,6 +10,88 @@ import TeacherDetailModal from '@/components/teachers/TeacherDetailModal';
 import Pagination from '@/components/ui/Pagination';
 import EmptyState from '@/components/ui/EmptyState';
 import toast from 'react-hot-toast';
+
+const IMPORT_FIELDS = [
+  'id',
+  'teacher_name',
+  'contact_number',
+  'teacher_address',
+  'pincode',
+  'dt_code',
+  'sub_code',
+  'std',
+  'medium',
+  'classifications',
+  'school_name',
+  'school_type',
+  'remarks',
+  'barcode',
+  'isActive',
+  'created_at',
+  'updated_at',
+];
+
+function parseCsvLine(line: string): string[] {
+  const cols: string[] = [];
+  let cell = '';
+  let inQuotes = false;
+
+  for (let i = 0; i < line.length; i += 1) {
+    const ch = line[i];
+
+    if (ch === '"') {
+      if (inQuotes && line[i + 1] === '"') {
+        cell += '"';
+        i += 1;
+      } else {
+        inQuotes = !inQuotes;
+      }
+      continue;
+    }
+
+    if (ch === ',' && !inQuotes) {
+      cols.push(cell.trim());
+      cell = '';
+      continue;
+    }
+
+    cell += ch;
+  }
+
+  cols.push(cell.trim());
+  return cols;
+}
+
+function parseTeacherCsv(content: string): Record<string, string>[] {
+  const lines = content.replace(/^\uFEFF/, '').split(/\r?\n/);
+  const nonEmptyLines = lines.filter(line => line.trim() !== '');
+  if (nonEmptyLines.length === 0) return [];
+
+  const firstCols = parseCsvLine(nonEmptyLines[0]).map(col => col.replace(/^\uFEFF/, '').trim());
+  const normalizedFirstCols = firstCols.map(col => col.toLowerCase());
+  const hasHeader = normalizedFirstCols.includes('teacher_name') || normalizedFirstCols.includes('contact_number');
+
+  const header = hasHeader ? normalizedFirstCols : IMPORT_FIELDS;
+  const dataLines = hasHeader ? nonEmptyLines.slice(1) : nonEmptyLines;
+
+  const rows: Record<string, string>[] = [];
+
+  for (const line of dataLines) {
+    const cols = parseCsvLine(line);
+    const row: Record<string, string> = {};
+
+    for (let i = 0; i < header.length; i += 1) {
+      row[header[i]] = (cols[i] ?? '').trim();
+    }
+
+    const values = Object.values(row).map(value => value.trim());
+    if (values.every(value => value === '')) continue;
+
+    rows.push(row);
+  }
+
+  return rows;
+}
 
 function TeachersContent() {
   const searchParams = useSearchParams();
@@ -26,6 +108,8 @@ function TeachersContent() {
   const [showForm,    setShowForm]    = useState(false);
   const [editTeacher, setEditTeacher] = useState<Teacher | null>(null);
   const [viewTeacher, setViewTeacher] = useState<Teacher | null>(null);
+  const [importing, setImporting] = useState(false);
+  const importFileRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (searchParams.get('action') === 'new') setShowForm(true);
@@ -55,6 +139,47 @@ function TeachersContent() {
     } catch (e: any) { toast.error(e.message); }
   }
 
+  async function handleImportFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+
+    if (!file.name.toLowerCase().endsWith('.csv')) {
+      toast.error('Please select a CSV file');
+      return;
+    }
+
+    setImporting(true);
+    try {
+      const text = await file.text();
+      const rows = parseTeacherCsv(text);
+
+      if (rows.length === 0) {
+        toast.error('No valid rows found in CSV');
+        return;
+      }
+
+      const res = await teachersApi.import(rows);
+      const summary = res.data || {};
+      const created = Number(summary.created || 0);
+      const updated = Number(summary.updated || 0);
+      const errors = Array.isArray(summary.errors) ? summary.errors : [];
+
+      if (errors.length > 0) {
+        const firstError = errors[0]?.message || 'Some rows failed to import';
+        toast.error(`Import completed with errors. Created: ${created}, Updated: ${updated}, Errors: ${errors.length}. ${firstError}`);
+      } else {
+        toast.success(`Import completed. Created: ${created}, Updated: ${updated}`);
+      }
+
+      await load();
+    } catch (error: any) {
+      toast.error(error.message || 'CSV import failed');
+    } finally {
+      setImporting(false);
+    }
+  }
+
   const activeFilters = Object.entries(filters)
     .filter(([k, v]) => v && !(k === 'isActive' && v === '1')).length;
 
@@ -69,6 +194,21 @@ function TeachersContent() {
           </p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
+          <input
+            ref={importFileRef}
+            type="file"
+            accept=".csv,text/csv"
+            className="hidden"
+            onChange={handleImportFileChange}
+          />
+          <button
+            onClick={() => importFileRef.current?.click()}
+            className="btn-secondary btn"
+            disabled={importing}
+          >
+            {importing ? <Loader2 size={16} className="animate-spin" /> : <Upload size={16} />}
+            Import CSV
+          </button>
           <button onClick={() => { setEditTeacher(null); setShowForm(true); }} className="btn-primary btn">
             <Plus size={16} /> Add Teacher
           </button>

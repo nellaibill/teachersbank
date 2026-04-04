@@ -78,3 +78,70 @@ export const usersApi = {
   update: (id: number, data: object) => apiFetch(`api/users/${id}`, 'PUT', data),
   delete: (id: number)               => apiFetch(`api/users/${id}`, 'DELETE'),
 };
+
+export const backupApi = {
+  download: async () => {
+    const token = getAuthToken();
+    const urlsToTry = [
+      `${PHP_BASE}/api/backup`,
+      'https://iiplrgscbse.com/teachers-bank-api/index.php/api/backup',
+    ];
+
+    let finalBlob: Blob | null = null;
+    let finalFilename = '';
+    let lastError = 'Failed to download backup';
+    for (const urlToTry of urlsToTry) {
+      const res = await fetch(urlToTry, {
+        method: 'GET',
+        headers: {
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+        },
+        cache: 'no-store',
+      });
+
+      if (!res.ok) {
+        try {
+          const json = await res.json();
+          lastError = json.message || 'Failed to download backup';
+        } catch {
+          lastError = 'Failed to download backup';
+        }
+        continue;
+      }
+
+      const contentType = (res.headers.get('content-type') || '').toLowerCase();
+
+      // If endpoint returns the API info JSON, this base is not serving backup correctly.
+      if (contentType.includes('application/json')) {
+        try {
+          const json = await res.json();
+          lastError = json.message || 'Backup endpoint returned JSON instead of SQL dump';
+        } catch {
+          lastError = 'Backup endpoint returned JSON instead of SQL dump';
+        }
+        continue;
+      }
+
+      const blob = await res.blob();
+      const disposition = res.headers.get('content-disposition') || '';
+      const match = disposition.match(/filename="?([^";]+)"?/i);
+
+      finalBlob = blob;
+      finalFilename = match?.[1] || `teachers_bank_backup_${new Date().toISOString().slice(0, 19).replace(/[:T]/g, '_')}.sql`;
+      break;
+    }
+
+    if (!finalBlob) {
+      throw new Error(lastError);
+    }
+
+    const url = URL.createObjectURL(finalBlob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = finalFilename;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+  },
+};
