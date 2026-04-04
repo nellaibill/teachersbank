@@ -1,7 +1,7 @@
 // src/lib/api.ts
 import { getAuthToken } from '@/context/AuthContext';
 
-const PHP_BASE = 'https://iiplrgscbse.com/teachers-bank-api/index.php';
+const PHP_BASE = 'https://iiplrgscbse.com/teachers-bank-api-v2/index.php';
 
 export async function apiFetch<T = any>(
   route: string,

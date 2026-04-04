@@ -8,6 +8,7 @@ import { getTeacherClassifications } from '@/lib/teacherClassifications';
 import { formatDate } from '@/lib/utils';
 import BarcodeDisplay from '@/components/ui/BarcodeDisplay';
 import EmptyState from '@/components/ui/EmptyState';
+import Pagination from '@/components/ui/Pagination';
 import toast from 'react-hot-toast';
 
 const REPORT_TYPES = [
@@ -100,6 +101,8 @@ function ReportsContent() {
   const [reportType, setReportType] = useState(searchParams.get('type') || 'consolidated');
   const [data, setData] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
+  const [page, setPage] = useState(1);
+  const [limit, setLimit] = useState(20);
   const [filters, setFilters] = useState({
     dt_code: '', sub_code: '', std: '', medium: '', school_type: '',
     from_date: '', to_date: '', status: ''
@@ -122,12 +125,20 @@ function ReportsContent() {
   }, [reportType, filters]);
 
   useEffect(() => { load(); }, [load]);
+  useEffect(() => { setPage(1); }, [reportType, filters]);
 
   function handlePrint() { window.print(); }
 
   const setFilter = (k: string, v: string) => setFilters(f => ({ ...f, [k]: v }));
   const clearFilters = () => setFilters({ dt_code: '', sub_code: '', std: '', medium: '', school_type: '', from_date: '', to_date: '', status: '' });
   const hasFilters = Object.values(filters).some(Boolean);
+  const isLabelReport = reportType === 'label';
+  const pagedData = useMemo(() => {
+    if (isLabelReport) return data;
+    const start = (page - 1) * limit;
+    return data.slice(start, start + limit);
+  }, [data, isLabelReport, page, limit]);
+  const totalPages = isLabelReport ? 1 : Math.max(1, Math.ceil(data.length / limit));
   const labelPages = reportType === 'label'
     ? Array.from({ length: Math.ceil(data.length / 9) }, (_, i) => data.slice(i * 9, i * 9 + 9))
     : [];
@@ -234,6 +245,24 @@ function ReportsContent() {
             <Printer size={15} /> Print
           </button>
         </div>
+        {!isLabelReport && (
+          <div className="no-print flex items-center gap-2">
+            <label className="text-xs font-semibold text-ink-500 uppercase tracking-wide">Rows</label>
+            <select
+              className="form-select py-1.5 text-sm"
+              value={limit}
+              onChange={(e) => {
+                setLimit(Number(e.target.value));
+                setPage(1);
+              }}
+            >
+              <option value={10}>10</option>
+              <option value={20}>20</option>
+              <option value={50}>50</option>
+              <option value={100}>100</option>
+            </select>
+          </div>
+        )}
       </div>
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 no-print">
@@ -309,6 +338,7 @@ function ReportsContent() {
                 <option>Dispatched</option>
                 <option>Delivered</option>
                 <option>Returned</option>
+                <option>Pending</option>
               </select>
             </div>
           )}
@@ -458,7 +488,7 @@ function ReportsContent() {
                   </tr>
                 </thead>
                 <tbody>
-                  {data.map((r: any) => (
+                  {pagedData.map((r: any) => (
                     <tr key={r.id}>
                       <td className="text-ink-400 text-xs font-mono">{r.sno}</td>
                       <td>
@@ -505,7 +535,7 @@ function ReportsContent() {
                 <thead>
                   <tr><th>Teacher</th><th>Barcode</th><th>Classifications</th><th>Dispatch Date</th><th>Delivered Date</th><th>POD Date</th><th>Status</th><th>Latest Followup</th></tr>
                 </thead>
-                {data.map((r: any) => (
+                {pagedData.map((r: any) => (
                   <tbody key={r.dispatch_id}>
                     <Fragment>
                       <tr>
@@ -578,7 +608,7 @@ function ReportsContent() {
         <div className="space-y-4">
           <ReportFilterHeader reportType={reportType} filters={filters} total={data.length} />
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 print:grid-cols-4 school-address-grid">
-            {data.map((r: any) => (
+            {pagedData.map((r: any) => (
               <div key={r.id} className="border border-ink-200 rounded-lg p-3 school-address-card">
                 <p className="font-semibold text-sm text-ink-900">{r.school_name}</p>
                 <p className="text-xs text-ink-500 mt-1 whitespace-pre-line">{r.full_address || r.teacher_address || '-'}</p>
@@ -586,6 +616,18 @@ function ReportsContent() {
               </div>
             ))}
           </div>
+        </div>
+      )}
+
+      {!isLabelReport && totalPages > 1 && (
+        <div className="no-print card px-4 pb-4 pt-1">
+          <Pagination
+            page={page}
+            totalPages={totalPages}
+            total={data.length}
+            limit={limit}
+            onChange={setPage}
+          />
         </div>
       )}
     </div>

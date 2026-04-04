@@ -14,31 +14,16 @@ import toast from 'react-hot-toast';
 
 function escapeExcelValue(value: unknown) {
   return String(value ?? '')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
+    .replace(/"/g, '""');
 }
 
-function downloadExcelFile(filename: string, headers: string[], rows: Array<Array<unknown>>) {
-  const headerHtml = headers.map(header => `<th>${escapeExcelValue(header)}</th>`).join('');
-  const rowsHtml = rows
-    .map(row => `<tr>${row.map(cell => `<td>${escapeExcelValue(cell)}</td>`).join('')}</tr>`)
-    .join('');
+function downloadCsvFile(filename: string, headers: string[], rows: Array<Array<unknown>>) {
+  const csvLines = [
+    headers.map(header => `"${escapeExcelValue(header)}"`).join(','),
+    ...rows.map(row => row.map(cell => `"${escapeExcelValue(cell)}"`).join(',')),
+  ];
 
-  const html = `
-    <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel">
-      <head><meta charSet="utf-8" /></head>
-      <body>
-        <table>
-          <thead><tr>${headerHtml}</tr></thead>
-          <tbody>${rowsHtml}</tbody>
-        </table>
-      </body>
-    </html>
-  `;
-
-  const blob = new Blob([`\ufeff${html}`], { type: 'application/vnd.ms-excel;charset=utf-8;' });
+  const blob = new Blob([`\ufeff${csvLines.join('\n')}`], { type: 'text/csv;charset=utf-8;' });
   const url = URL.createObjectURL(blob);
   const link = document.createElement('a');
   link.href = url;
@@ -87,7 +72,7 @@ function UpdateDispatchModal({ dispatch, onClose, onSaved }: { dispatch: Dispatc
   const [saving, setSaving]   = useState(false);
   const isDelivered = status === 'Delivered';
   const isDispatched = status === 'Dispatched';
-  const minDeliveryDate = dispatch.dispatch_date;
+  const minAllowedDate = dispatch.dispatch_date;
 
   async function handleSave() {
     // Validation for Delivered status
@@ -95,8 +80,13 @@ function UpdateDispatchModal({ dispatch, onClose, onSaved }: { dispatch: Dispatc
       toast.error('Delivery date is required when status is Delivered');
       return;
     }
-    if (isDelivered && delivered_date < minDeliveryDate) {
+    if (isDelivered && delivered_date < minAllowedDate) {
       toast.error('Delivery date cannot be before dispatch date');
+      return;
+    }
+
+    if (pod_date && pod_date < minAllowedDate) {
+      toast.error('POD date cannot be before dispatch date');
       return;
     }
 
@@ -166,7 +156,7 @@ function UpdateDispatchModal({ dispatch, onClose, onSaved }: { dispatch: Dispatc
                 className="form-input" 
                 value={delivered_date} 
                 onChange={e => setDeliveredDate(e.target.value)}
-                min={minDeliveryDate}
+                min={minAllowedDate}
                 required
               />
               <p className="text-xs text-emerald-700 mt-2">Date when the teacher received the materials</p>
@@ -181,6 +171,7 @@ function UpdateDispatchModal({ dispatch, onClose, onSaved }: { dispatch: Dispatc
               className="form-input" 
               value={pod_date} 
               onChange={e => setPodDate(e.target.value)}
+              min={minAllowedDate}
               placeholder="Optional: When proof of delivery was received"
             />
             <p className="text-xs text-ink-400 mt-1">When official proof of delivery was received (can be later than delivery date)</p>
@@ -213,6 +204,7 @@ export default function DispatchPage() {
   const [filterStatus, setFilterStatus] = useState('');
   const [searchQuery, setSearchQuery]   = useState('');
   const [updateTarget, setUpdateTarget] = useState<Dispatch | null>(null);
+  const [limit, setLimit] = useState(20);
   const inputRef = useRef<HTMLInputElement>(null);
 
   // Handle Ctrl+B shortcut to focus barcode input
@@ -230,9 +222,7 @@ export default function DispatchPage() {
   const loadDispatches = useCallback(async () => {
     setLoading(true);
     try {
-      // When filters are applied, load all data; otherwise use pagination
-      const hasFilters = filterFromDate || filterToDate || filterStatus || searchQuery;
-      const params: any = hasFilters ? { limit: 1000, page: 1 } : { page, limit: 20 };
+      const params: any = { page, limit };
       if (filterStatus) params.status = filterStatus;
       if (filterFromDate) params.from_date = filterFromDate;
       if (filterToDate) params.to_date = filterToDate;
@@ -242,48 +232,37 @@ export default function DispatchPage() {
       setPagination(res.data?.pagination ?? null);
     } catch (e: any) { toast.error(e.message); }
     finally { setLoading(false); }
-  }, [page, filterStatus, filterFromDate, filterToDate, searchQuery]);
-
-  // Filter dispatches by search query (client-side only, since backend handles date & status)
-  const getFilteredAndPaginatedDispatches = useCallback(() => {
-    let filtered = [...dispatches];
-    const hasFilters = filterFromDate || filterToDate || searchQuery;
-
-    // Filter by search query (teacher name, contact number, POD number) - client side only
-    if (searchQuery.trim()) {
-      const q = searchQuery.toLowerCase().trim();
-      filtered = filtered.filter(d => 
-        (d.teacher_name?.toLowerCase().includes(q)) ||
-        (String(d.contact_number || '').toLowerCase().includes(q)) ||
-        (String(d.po_number || '').toUpperCase().includes(q.toUpperCase()))
-      );
-    }
-
-    // Apply pagination only when filters are active (when backend returns all 1000 records)
-    let paginatedData = filtered;
-    if (hasFilters) {
-      const limit = pagination?.limit || 20;
-      const offset = (page - 1) * limit;
-      paginatedData = filtered.slice(offset, offset + limit);
-    }
-
-    return { filtered, paginatedData };
-  }, [dispatches, filterFromDate, filterToDate, searchQuery, page, pagination?.limit]);
+  }, [page, limit, filterStatus, filterFromDate, filterToDate, searchQuery]);
 
   useEffect(() => { loadDispatches(); }, [loadDispatches]);
 
   const exportDispatches = useCallback(() => {
     setExporting(true);
-    try {
-      const { filtered } = getFilteredAndPaginatedDispatches();
+    (async () => {
+      try {
+      const baseParams: any = { limit: 100 };
+      if (filterStatus) baseParams.status = filterStatus;
+      if (filterFromDate) baseParams.from_date = filterFromDate;
+      if (filterToDate) baseParams.to_date = filterToDate;
+      if (searchQuery) baseParams.search = searchQuery;
 
-      if (filtered.length === 0) {
+      const firstRes = await dispatchApi.list({ ...baseParams, page: 1 });
+      const firstRows = firstRes.data?.dispatches ?? [];
+      const totalPages = firstRes.data?.pagination?.total_pages ?? 1;
+      const exportRows: Dispatch[] = [...firstRows];
+
+      for (let currentPage = 2; currentPage <= totalPages; currentPage += 1) {
+        const pageRes = await dispatchApi.list({ ...baseParams, page: currentPage });
+        const pageRows = pageRes.data?.dispatches ?? [];
+        exportRows.push(...pageRows);
+      }
+
+      if (exportRows.length === 0) {
         toast.error('No dispatch data available to export');
-        setExporting(false);
         return;
       }
 
-      const rows = filtered.map((dispatch, index) => [
+      const rows = exportRows.map((dispatch: Dispatch, index: number) => [
         index + 1,
         dispatch.teacher_name || '',
         dispatch.school_name || '',
@@ -297,18 +276,19 @@ export default function DispatchPage() {
       ]);
 
       const filenameDate = filterFromDate || today();
-      downloadExcelFile(
-        `dispatch-report-${filenameDate}.xls`,
+      downloadCsvFile(
+        `dispatch-report-${filenameDate}.csv`,
         ['Sl. No.', 'Teacher', 'School', 'Contact', 'Barcode', 'Dispatch Date', 'Delivered Date', 'POD Date', 'Status', 'POD Number'],
         rows,
       );
-      toast.success(`Exported ${filtered.length} dispatch record${filtered.length === 1 ? '' : 's'}`);
-    } catch (e: any) {
-      toast.error(e.message || 'Failed to export dispatch data');
-    } finally {
-      setExporting(false);
-    }
-  }, [getFilteredAndPaginatedDispatches]);
+      toast.success(`Exported ${exportRows.length} dispatch record${exportRows.length === 1 ? '' : 's'}`);
+      } catch (e: any) {
+        toast.error(e.message || 'Failed to export dispatch data');
+      } finally {
+        setExporting(false);
+      }
+    })();
+  }, [filterStatus, filterFromDate, filterToDate, searchQuery]);
 
   async function handleScan(e: React.FormEvent) {
     e.preventDefault();
@@ -402,6 +382,7 @@ export default function DispatchPage() {
                 <option>Dispatched</option>
                 <option>Delivered</option>
                 <option>Returned</option>
+                <option>Pending</option>
               </select>
               {(filterFromDate || filterToDate || filterStatus) && (
                 <button onClick={() => { setFilterFromDate(''); setFilterToDate(''); setFilterStatus(''); setPage(1); }}
@@ -420,6 +401,22 @@ export default function DispatchPage() {
                   onChange={e => { setSearchQuery(e.target.value); setPage(1); }}
                   placeholder="Teacher name, contact number, or POD number" />
               </div>
+              <div>
+                <label className="form-label text-xs">Rows</label>
+                <select
+                  className="form-select py-1.5 text-sm min-w-[90px]"
+                  value={limit}
+                  onChange={e => {
+                    setLimit(Number(e.target.value));
+                    setPage(1);
+                  }}
+                >
+                  <option value={10}>10</option>
+                  <option value={20}>20</option>
+                  <option value={50}>50</option>
+                  <option value={100}>100</option>
+                </select>
+              </div>
               {searchQuery && (
                 <button onClick={() => setSearchQuery('')}
                   className="btn-ghost btn btn-sm">
@@ -427,7 +424,7 @@ export default function DispatchPage() {
                 </button>
               )}
               <button onClick={exportDispatches} disabled={exporting} className="btn-primary btn btn-sm">
-                {exporting ? <><Loader2 size={14} className="animate-spin" /> Exporting...</> : 'Download Excel'}
+                {exporting ? <><Loader2 size={14} className="animate-spin" /> Exporting...</> : 'Download CSV'}
               </button>
               <button onClick={loadDispatches} className="btn-secondary btn btn-icon btn-sm">
                 <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
@@ -439,9 +436,9 @@ export default function DispatchPage() {
           <div className="card p-0 overflow-hidden">
             {loading ? (
               <div className="p-6 space-y-3">{Array(5).fill(0).map((_, i) => <div key={i} className="h-12 skeleton" />)}</div>
-            ) : getFilteredAndPaginatedDispatches().filtered.length === 0 ? (
+            ) : dispatches.length === 0 ? (
               <EmptyState icon={Package} title="No dispatches found"
-                description={dispatches.length > 0 ? 'No results match your filters' : 'Scan a barcode above to create the first dispatch'} />
+                description={filterFromDate || filterToDate || filterStatus || searchQuery ? 'No results match your filters' : 'Scan a barcode above to create the first dispatch'} />
             ) : (
               <div className="overflow-x-auto">
                 <table className="data-table">
@@ -459,9 +456,9 @@ export default function DispatchPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {getFilteredAndPaginatedDispatches().paginatedData.map((d, idx) => (
+                    {dispatches.map((d, idx) => (
                       <tr key={d.id} style={{ animationDelay: `${idx * 25}ms` }} className="animate-fade-in">
-                        <td className="text-sm text-ink-500 whitespace-nowrap">{(page - 1) * (pagination?.limit || 20) + idx + 1}</td>
+                        <td className="text-sm text-ink-500 whitespace-nowrap">{(page - 1) * (pagination?.limit || limit) + idx + 1}</td>
                         <td>
                           <p className="font-medium text-ink-900 text-sm">{d.teacher_name}</p>
                           <p className="text-xs text-ink-400 break-words">{d.teacher_address || '—'}</p>
@@ -504,20 +501,12 @@ export default function DispatchPage() {
             )}
 
             {pagination && (
-              (() => {
-                const { filtered } = getFilteredAndPaginatedDispatches();
-                // Only client-side search filtering affects pagination
-                const hasSearchFilter = !!searchQuery.trim();
-                const totalForDisplay = hasSearchFilter ? filtered.length : pagination.total;
-                const totalPagesForDisplay = hasSearchFilter ? Math.ceil(filtered.length / (pagination?.limit || 20)) : pagination.total_pages;
-                
-                return totalPagesForDisplay > 1 ? (
-                  <div className="px-4 pb-4">
-                    <Pagination page={page} totalPages={totalPagesForDisplay}
-                      total={totalForDisplay} limit={pagination.limit} onChange={setPage} />
-                  </div>
-                ) : null;
-              })()
+              pagination.total_pages > 1 ? (
+                <div className="px-4 pb-4">
+                  <Pagination page={page} totalPages={pagination.total_pages}
+                    total={pagination.total} limit={pagination.limit} onChange={setPage} />
+                </div>
+              ) : null
             )}
 
           </div>

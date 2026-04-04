@@ -58,18 +58,95 @@ function scanAndDispatch() {
 }
 
 function listDispatches() {
-    $conn = getDBConnection(); $where = ['1=1']; $params = []; $types = '';
+    $conn = getDBConnection();
+    $where = ['1=1'];
+    $params = [];
+    $types = '';
 
-    if (!empty($_GET['date']))       { $where[] = 'd.dispatch_date = ?';    $params[] = $_GET['date'];       $types .= 's'; }
-    if (!empty($_GET['status']))     { $where[] = 'd.status = ?';           $params[] = $_GET['status'];     $types .= 's'; }
-    if (!empty($_GET['teacher_id'])) { $where[] = 'd.teacher_id = ?';       $params[] = (int)$_GET['teacher_id']; $types .= 'i'; }
-    if (!empty($_GET['from_date']))  { $where[] = 'd.dispatch_date >= ?';   $params[] = $_GET['from_date'];  $types .= 's'; }
-    if (!empty($_GET['to_date']))    { $where[] = 'd.dispatch_date <= ?';   $params[] = $_GET['to_date'];    $types .= 's'; }
+    $dateFields = ['date', 'from_date', 'to_date'];
+    foreach ($dateFields as $dateField) {
+        if (!isset($_GET[$dateField]) || $_GET[$dateField] === '') {
+            continue;
+        }
 
-    $page = max(1,(int)($_GET['page']??1)); $limit = max(1,min(100,(int)($_GET['limit']??20)));
-    $offset = ($page-1)*$limit; $whereSQL = implode(' AND ', $where);
+        $value = (string)$_GET[$dateField];
+        $date = DateTime::createFromFormat('Y-m-d', $value);
+        if (!$date || $date->format('Y-m-d') !== $value) {
+            sendError("Invalid $dateField. Expected YYYY-MM-DD", 422);
+        }
+    }
 
-    $stmt = $conn->prepare("SELECT COUNT(*) AS total FROM dispatch d WHERE $whereSQL");
+    if (!empty($_GET['from_date']) && !empty($_GET['to_date']) && $_GET['from_date'] > $_GET['to_date']) {
+        sendError('from_date cannot be later than to_date', 422);
+    }
+
+    if (isset($_GET['page']) && (!is_numeric($_GET['page']) || (int)$_GET['page'] < 1)) {
+        sendError('Invalid page. Must be a positive integer', 422);
+    }
+    if (isset($_GET['limit']) && (!is_numeric($_GET['limit']) || (int)$_GET['limit'] < 1 || (int)$_GET['limit'] > 100)) {
+        sendError('Invalid limit. Must be between 1 and 100', 422);
+    }
+
+    $page = (int)($_GET['page'] ?? 1);
+    $limit = (int)($_GET['limit'] ?? 20);
+    $offset = ($page - 1) * $limit;
+
+    if (!empty($_GET['date'])) {
+        $where[] = 'd.dispatch_date = ?';
+        $params[] = $_GET['date'];
+        $types .= 's';
+    }
+
+    if (!empty($_GET['status'])) {
+        $status = trim((string)$_GET['status']);
+        $allowedStatuses = ['Dispatched', 'Delivered', 'Returned', 'Pending'];
+        if (!in_array($status, $allowedStatuses, true)) {
+            sendError('Invalid status. Allowed values: Dispatched, Delivered, Returned, Pending', 422);
+        }
+
+        if ($status === 'Pending') {
+            $where[] = "(d.po_number IS NULL OR TRIM(d.po_number) = '')";
+        } else {
+            $where[] = 'd.status = ?';
+            $params[] = $status;
+            $types .= 's';
+        }
+    }
+
+    if (!empty($_GET['teacher_id'])) {
+        if (!is_numeric($_GET['teacher_id']) || (int)$_GET['teacher_id'] < 1) {
+            sendError('Invalid teacher_id. Must be a positive integer', 422);
+        }
+        $where[] = 'd.teacher_id = ?';
+        $params[] = (int)$_GET['teacher_id'];
+        $types .= 'i';
+    }
+
+    if (!empty($_GET['from_date'])) {
+        $where[] = 'd.dispatch_date >= ?';
+        $params[] = $_GET['from_date'];
+        $types .= 's';
+    }
+    if (!empty($_GET['to_date'])) {
+        $where[] = 'd.dispatch_date <= ?';
+        $params[] = $_GET['to_date'];
+        $types .= 's';
+    }
+
+    if (!empty($_GET['search'])) {
+        $search = '%' . trim((string)$_GET['search']) . '%';
+        $where[] = '(t.teacher_name LIKE ? OR t.contact_number LIKE ? OR t.school_name LIKE ? OR t.barcode LIKE ? OR d.po_number LIKE ?)';
+        $params[] = $search;
+        $params[] = $search;
+        $params[] = $search;
+        $params[] = $search;
+        $params[] = $search;
+        $types .= 'sssss';
+    }
+
+    $whereSQL = implode(' AND ', $where);
+
+    $stmt = $conn->prepare("SELECT COUNT(*) AS total FROM dispatch d JOIN teachers t ON d.teacher_id = t.id WHERE $whereSQL");
     if ($types) $stmt->bind_param($types, ...$params); $stmt->execute();
     $total = $stmt->get_result()->fetch_assoc()['total'];
 
@@ -144,6 +221,18 @@ function updateDispatch($id) {
         }
         if ($deliveredDate < $dispatchDate) {
             sendError('Delivery date cannot be before dispatch date', 422);
+        }
+    }
+
+    // Validate: POD date cannot be before dispatch date
+    if (!empty($body['pod_date'])) {
+        $podDate = DateTime::createFromFormat('Y-m-d', $body['pod_date']);
+        $dispatchDate = DateTime::createFromFormat('Y-m-d', $currentDispatch['dispatch_date']);
+        if (!$podDate || $podDate->format('Y-m-d') !== $body['pod_date']) {
+            sendError('POD date must be a valid date in YYYY-MM-DD format', 422);
+        }
+        if ($podDate < $dispatchDate) {
+            sendError('POD date cannot be before dispatch date', 422);
         }
     }
 

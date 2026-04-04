@@ -158,9 +158,47 @@ function dispatchReport() {
     $conn   = getDBConnection();
     $where  = ['1=1']; $params = []; $types = '';
 
-    if (!empty($_GET['from_date'])) { $where[] = 'd.dispatch_date >= ?'; $params[] = $_GET['from_date']; $types .= 's'; }
-    if (!empty($_GET['to_date']))   { $where[] = 'd.dispatch_date <= ?'; $params[] = $_GET['to_date'];   $types .= 's'; }
-    if (!empty($_GET['status']))    { $where[] = 'd.status = ?';         $params[] = $_GET['status'];    $types .= 's'; }
+    foreach (['from_date', 'to_date'] as $dateField) {
+        if (empty($_GET[$dateField])) {
+            continue;
+        }
+
+        $value = (string)$_GET[$dateField];
+        $date = DateTime::createFromFormat('Y-m-d', $value);
+        if (!$date || $date->format('Y-m-d') !== $value) {
+            sendError("Invalid $dateField. Expected YYYY-MM-DD", 422);
+        }
+    }
+
+    if (!empty($_GET['from_date']) && !empty($_GET['to_date']) && $_GET['from_date'] > $_GET['to_date']) {
+        sendError('from_date cannot be later than to_date', 422);
+    }
+
+    if (!empty($_GET['from_date'])) {
+        $where[] = 'd.dispatch_date >= ?';
+        $params[] = $_GET['from_date'];
+        $types .= 's';
+    }
+    if (!empty($_GET['to_date'])) {
+        $where[] = 'd.dispatch_date <= ?';
+        $params[] = $_GET['to_date'];
+        $types .= 's';
+    }
+    if (!empty($_GET['status'])) {
+        $status = trim((string)$_GET['status']);
+        $allowedStatuses = ['Dispatched', 'Delivered', 'Returned', 'Pending'];
+        if (!in_array($status, $allowedStatuses, true)) {
+            sendError('Invalid status. Allowed values: Dispatched, Delivered, Returned, Pending', 422);
+        }
+
+        if ($status === 'Pending') {
+            $where[] = "(d.po_number IS NULL OR TRIM(d.po_number) = '')";
+        } else {
+            $where[] = 'd.status = ?';
+            $params[] = $status;
+            $types .= 's';
+        }
+    }
 
     [$tWhere, $tParams, $tTypes] = buildTeacherFilters();
     $where  = array_merge($where, $tWhere);
