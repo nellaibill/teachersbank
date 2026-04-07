@@ -73,16 +73,7 @@ function scanAndDispatch() {
 
     $dispatchId = $conn->insert_id;
 
-    // 4. Create follow-up Level 1 with reminder = dispatch_date + 10 days
-    $reminderDate = date('Y-m-d', strtotime($dispatchDate . ' +10 days'));
-    $fup = $conn->prepare("
-        INSERT INTO followups (dispatch_id, followup_level, reminder_date, status)
-        VALUES (?, 1, ?, 'Pending')
-    ");
-    $fup->bind_param('is', $dispatchId, $reminderDate);
-    $fup->execute();
-
-    // 5. Fetch full dispatch record
+    // 4. Fetch full dispatch record (follow-up will be created when status changes to 'Delivered')
     $sel = $conn->prepare("
         SELECT d.*, t.teacher_name, t.contact_number, t.school_name, t.address_1, t.address_2, t.address_3
         FROM dispatch d
@@ -95,8 +86,7 @@ function scanAndDispatch() {
 
     $conn->close();
     sendSuccess([
-        'dispatch'      => $dispatch,
-        'reminder_date' => $reminderDate,
+        'dispatch' => $dispatch,
     ], 'Dispatch successful');
 }
 
@@ -208,17 +198,19 @@ function getDispatch($id) {
 }
 
 // ─── PUT /api/dispatch?id={id} ────────────────────────────────────────────────
-// Update POD date and/or status
+// Update POD date, delivered_date, and/or status
+// When status transitions to 'Delivered', auto-create Level 1 follow-up if not exists
 function updateDispatch($id) {
     $body = getRequestBody();
     $conn = getDBConnection();
 
-    $chk = $conn->prepare("SELECT id FROM dispatch WHERE id = ?");
+    $chk = $conn->prepare("SELECT id, status, delivered_date FROM dispatch WHERE id = ?");
     $chk->bind_param('i', $id);
     $chk->execute();
-    if (!$chk->get_result()->fetch_assoc()) sendError('Dispatch not found', 404);
+    $dispatchData = $chk->get_result()->fetch_assoc();
+    if (!$dispatchData) sendError('Dispatch not found', 404);
 
-    $allowed = ['pod_date', 'status'];
+    $allowed = ['pod_date', 'delivered_date', 'status'];
     $sets    = [];
     $params  = [];
     $types   = '';
@@ -241,6 +233,30 @@ function updateDispatch($id) {
     $stmt->bind_param($types, ...$params);
 
     if (!$stmt->execute()) sendError('Failed to update dispatch', 500);
+
+    // Auto-create Level 1 follow-up if status is being updated to 'Delivered'
+    // and a Level 1 follow-up doesn't already exist
+    if (isset($body['status']) && $body['status'] === 'Delivered') {
+        // Check if Level 1 follow-up already exists
+        $fupChk = $conn->prepare("SELECT id FROM followups WHERE dispatch_id = ? AND followup_level = 1");
+        $fupChk->bind_param('i', $id);
+        $fupChk->execute();
+        $existingFollowup = $fupChk->get_result()->fetch_assoc();
+
+        if (!$existingFollowup) {
+            // Get delivered_date to calculate reminder
+            $deliveredDate = $body['delivered_date'] ?? $dispatchData['delivered_date'];
+            if ($deliveredDate) {
+                $reminderDate = date('Y-m-d', strtotime($deliveredDate . ' +10 days'));
+                $fupIns = $conn->prepare("
+                    INSERT INTO followups (dispatch_id, followup_level, reminder_date, status)
+                    VALUES (?, 1, ?, 'Pending')
+                ");
+                $fupIns->bind_param('is', $id, $reminderDate);
+                $fupIns->execute();
+            }
+        }
+    }
 
     $conn->close();
     sendSuccess([], 'Dispatch updated successfully');

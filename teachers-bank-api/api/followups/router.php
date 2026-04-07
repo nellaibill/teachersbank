@@ -71,6 +71,19 @@ function listFollowups() {
         $params[] = $today;
         $types   .= 's';
     }
+    if (!empty($_GET['search'])) {
+        $search = '%' . $_GET['search'] . '%';
+        $where[]  = '(t.teacher_name LIKE ? OR t.contact_number LIKE ? OR t.barcode LIKE ?)';
+        $params[] = $search;
+        $params[] = $search;
+        $params[] = $search;
+        $types   .= 'sss';
+    }
+    if (!empty($_GET['dispatch_status'])) {
+        $where[]  = 'd.status = ?';
+        $params[] = $_GET['dispatch_status'];
+        $types   .= 's';
+    }
 
     $page     = max(1, (int)($_GET['page']  ?? 1));
     $limit    = max(1, min(100, (int)($_GET['limit'] ?? 20)));
@@ -82,6 +95,8 @@ function listFollowups() {
             FROM followups
             GROUP BY dispatch_id
         ) latest ON latest.latest_id = f.id
+        JOIN dispatch d ON f.dispatch_id = d.id
+        JOIN teachers t ON d.teacher_id = t.id
     ";
     $whereSQL = implode(' AND ', $where);
 
@@ -91,13 +106,11 @@ function listFollowups() {
     $total = $stmt->get_result()->fetch_assoc()['total'];
 
     $stmt2 = $conn->prepare("
-        SELECT f.*, d.dispatch_date, d.pod_date, d.status AS dispatch_status,
+        SELECT f.*, d.dispatch_date, d.delivered_date, d.pod_date, d.po_number, d.status AS dispatch_status,
                t.teacher_name, t.contact_number, t.school_name,
                t.teacher_address, t.pincode, t.barcode,
                t.dt_code, t.sub_code, t.medium, t.std, t.classifications
         $baseJoin
-        JOIN dispatch d ON f.dispatch_id = d.id
-        JOIN teachers t ON d.teacher_id = t.id
         WHERE $whereSQL
         ORDER BY f.reminder_date ASC, f.followup_level ASC LIMIT ? OFFSET ?
     ");
@@ -123,7 +136,7 @@ function listFollowups() {
 function getFollowup($id) {
     $conn = getDBConnection();
     $stmt = $conn->prepare("
-        SELECT f.*, d.dispatch_date, d.pod_date, d.status AS dispatch_status,
+        SELECT f.*, d.dispatch_date, d.delivered_date, d.pod_date, d.po_number, d.status AS dispatch_status,
                t.teacher_name, t.contact_number, t.school_name,
                t.teacher_address, t.pincode, t.barcode,
                t.dt_code, t.sub_code, t.medium, t.std, t.classifications

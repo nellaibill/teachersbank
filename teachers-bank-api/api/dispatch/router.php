@@ -39,10 +39,6 @@ function scanAndDispatch() {
     if (!$ins->execute()) sendError('Failed to create dispatch: ' . $ins->error, 500);
 
     $dispatchId   = $conn->insert_id;
-    $reminderDate = date('Y-m-d', strtotime($dispatchDate . ' +10 days'));
-
-    $fup = $conn->prepare("INSERT INTO followups (dispatch_id, followup_level, reminder_date, status) VALUES (?, 1, ?, 'Pending')");
-    $fup->bind_param('is', $dispatchId, $reminderDate); $fup->execute();
 
     $sel = $conn->prepare("
         SELECT d.*, t.teacher_name, t.contact_number, t.school_name,
@@ -54,7 +50,7 @@ function scanAndDispatch() {
     $dispatch = $sel->get_result()->fetch_assoc();
 
     $conn->close();
-    sendSuccess(['dispatch' => $dispatch, 'reminder_date' => $reminderDate], 'Dispatch successful');
+    sendSuccess(['dispatch' => $dispatch], 'Dispatch successful');
 }
 
 function listDispatches() {
@@ -250,6 +246,29 @@ function updateDispatch($id) {
     $stmt = $conn->prepare("UPDATE dispatch SET " . implode(', ', $sets) . " WHERE id = ?");
     $stmt->bind_param($types, ...$params);
     if (!$stmt->execute()) sendError('Failed to update dispatch', 500);
+
+    // Auto-create Level 1 follow-up if status is being updated to 'Delivered'
+    // and a Level 1 follow-up doesn't already exist
+    if (isset($body['status']) && $body['status'] === 'Delivered') {
+        $fupChk = $conn->prepare("SELECT id FROM followups WHERE dispatch_id = ? AND followup_level = 1");
+        $fupChk->bind_param('i', $id);
+        $fupChk->execute();
+        $existingFollowup = $fupChk->get_result()->fetch_assoc();
+
+        if (!$existingFollowup) {
+            // Get delivered_date to calculate reminder
+            $deliveredDate = $body['delivered_date'] ?? $currentDispatch['delivered_date'];
+            if ($deliveredDate) {
+                $reminderDate = date('Y-m-d', strtotime($deliveredDate . ' +10 days'));
+                $fupIns = $conn->prepare("
+                    INSERT INTO followups (dispatch_id, followup_level, reminder_date, status)
+                    VALUES (?, 1, ?, 'Pending')
+                ");
+                $fupIns->bind_param('is', $id, $reminderDate);
+                $fupIns->execute();
+            }
+        }
+    }
 
     $sel = $conn->prepare("
         SELECT d.*, t.teacher_name, t.contact_number, t.school_name,

@@ -533,7 +533,7 @@ function ReportsContent() {
             <div className="overflow-x-auto">
               <table className="data-table dispatch-report-table">
                 <thead>
-                  <tr><th>Teacher</th><th>Barcode</th><th>Classifications</th><th>Dispatch Date</th><th>Delivered Date</th><th>POD Date</th><th>Status</th><th>Latest Followup</th></tr>
+                  <tr><th>Teacher</th><th>Barcode</th><th>Classifications</th><th>Dispatch Date</th><th>Delivered Date</th><th>POD Date</th><th>PO Number</th><th>Status</th><th>Latest Followup</th></tr>
                 </thead>
                 {pagedData.map((r: any) => (
                   <tbody key={r.dispatch_id}>
@@ -560,6 +560,18 @@ function ReportsContent() {
                         <td className="text-sm whitespace-nowrap">{formatDate(r.dispatch_date)}</td>
                         <td className="text-sm whitespace-nowrap">{r.delivered_date ? formatDate(r.delivered_date) : '-'}</td>
                         <td className="text-sm whitespace-nowrap">{r.pod_date ? formatDate(r.pod_date) : '-'}</td>
+                        <td className="text-sm whitespace-nowrap">
+                          {r.po_number ? (
+                            <div className="flex items-center gap-2">
+                              <span>{r.po_number}</span>
+                              <a href={`https://www.tpcindia.com/CaptchaGate.aspx?id=${r.po_number}&type=0&service=0`}
+                                target="_blank" rel="noopener noreferrer"
+                                className="btn-ghost btn btn-sm text-brand-600 hover:text-brand-700">
+                                View
+                              </a>
+                            </div>
+                          ) : <span className="text-ink-300">—</span>}
+                        </td>
                         <td>
                           <span className={`badge text-xs ${
                             r.status === 'Delivered' ? 'bg-emerald-100 text-emerald-700' :

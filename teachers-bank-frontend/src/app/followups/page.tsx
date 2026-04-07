@@ -3,7 +3,7 @@ import { Fragment, useEffect, useState, useCallback, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import {
   Bell, CheckCircle2, X, Loader2, Phone,
-  RefreshCw, AlertCircle, Clock, MessageSquare
+  RefreshCw, AlertCircle, Clock, MessageSquare, Search
 } from 'lucide-react';
 import { followupsApi } from '@/lib/api';
 import { Followup, Pagination as PaginationType, FOLLOWUP_STATUS_COLORS } from '@/lib/types';
@@ -160,10 +160,24 @@ function UpdateFollowupModal({ followup, onClose, onSaved }: { followup: Followu
             <div className="border-t border-blue-100 pt-2">
               <p className="text-xs font-semibold text-ink-700 uppercase mb-1.5">Dispatch Status</p>
               <div className="space-y-1">
-                <p className="text-ink-700"><span className="font-medium">Sent:</span> {followup.dispatch_date ? formatDate(followup.dispatch_date) : 'N/A'}</p>
+                <p className="text-ink-700"><span className="font-medium">Dispatch Date:</span> {followup.dispatch_date ? formatDate(followup.dispatch_date) : 'N/A'}</p>
                 {followup.dispatch_status && <p className="text-ink-700"><span className="font-medium">Status:</span> {followup.dispatch_status}</p>}
                 {followup.delivered_date && <p className="text-ink-700"><span className="font-medium">Delivered:</span> {formatDate(followup.delivered_date)}</p>}
-                {followup.pod_date && <p className="text-ink-700"><span className="font-medium">POD Received:</span> {formatDate(followup.pod_date)}</p>}
+                {followup.pod_date && (
+                  <div className="flex items-center justify-between pt-1">
+                    <p className="text-ink-700"><span className="font-medium">POD Date:</span> {formatDate(followup.pod_date)}</p>
+                    {followup.po_number && (
+                      <a 
+                        href={`https://www.tpcindia.com/CaptchaGate.aspx?id=${followup.po_number}&type=0&service=0`}
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        className="btn-ghost btn btn-xs text-brand-600 hover:text-brand-700"
+                      >
+                       {followup.po_number} View Status
+                      </a>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -238,6 +252,7 @@ function FollowupsContent() {
   const [pagination, setPagination] = useState<PaginationType | null>(null);
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
+  const [searchQuery, setSearchQuery] = useState('');
   const [filterDate, setFilterDate] = useState(getDateFilterValue(searchParams));
   const [filterToDate, setFilterToDate] = useState(searchParams.get('to_date') || '');
   const [filterStatus, setFilterStatus] = useState(getStatusFilterValue(searchParams));
@@ -254,9 +269,11 @@ function FollowupsContent() {
     setLoading(true);
     try {
       const params: any = { page, limit: 20 };
+      if (searchQuery) params.search = searchQuery;
       if (filterDate) params.date = filterDate;
       if (filterToDate) params.to_date = filterToDate;
       if (filterStatus) params.status = filterStatus;
+      params.dispatch_status = 'Delivered';
       const res = await followupsApi.list(params);
       setFollowups(res.data?.followups ?? []);
       setPagination(res.data?.pagination ?? null);
@@ -265,7 +282,7 @@ function FollowupsContent() {
     } finally {
       setLoading(false);
     }
-  }, [page, filterDate, filterToDate, filterStatus]);
+  }, [page, searchQuery, filterDate, filterToDate, filterStatus]);
 
   useEffect(() => {
     load();
@@ -293,6 +310,16 @@ function FollowupsContent() {
       )}
 
       <div className="card p-4 flex gap-3 flex-wrap">
+        <div className="flex items-center gap-2 flex-1 min-w-[200px]">
+          <Search size={14} className="text-ink-400" />
+          <input
+            type="text"
+            placeholder="Search by teacher, barcode, or contact..."
+            className="form-input py-1.5 text-sm w-full"
+            value={searchQuery}
+            onChange={e => { setSearchQuery(e.target.value); setPage(1); }}
+          />
+        </div>
         <div className="flex items-center gap-2">
           <Clock size={14} className="text-ink-400" />
           <input
@@ -329,9 +356,9 @@ function FollowupsContent() {
           >
             <Clock size={13} /> Today
           </button>
-          {(filterDate || filterToDate || filterStatus) && (
+          {(searchQuery || filterDate || filterToDate || filterStatus) && (
             <button
-              onClick={() => { setFilterDate(today()); setFilterToDate(''); setFilterStatus(''); setPage(1); }}
+              onClick={() => { setSearchQuery(''); setFilterDate(today()); setFilterToDate(''); setFilterStatus(''); setPage(1); }}
               className="btn-ghost btn btn-sm"
             >
               <X size={13} /> Clear
@@ -363,6 +390,7 @@ function FollowupsContent() {
                   <th>Reminder Date</th>
                   <th>Status</th>
                   <th>Remarks</th>
+                  <th>PO Number</th>
                   <th className="text-right">Action</th>
                 </tr>
               </thead>
@@ -404,6 +432,18 @@ function FollowupsContent() {
                         <td className="max-w-[140px]">
                           <p className="text-xs text-ink-500 truncate">{f.remarks || '-'}</p>
                         </td>
+                        <td className="text-sm whitespace-nowrap">
+                          {f.po_number ? (
+                            <div className="flex items-center gap-2">
+                              <span>{f.po_number}</span>
+                              <a href={`https://www.tpcindia.com/CaptchaGate.aspx?id=${f.po_number}&type=0&service=0`}
+                                target="_blank" rel="noopener noreferrer"
+                                className="btn-ghost btn btn-sm text-brand-600 hover:text-brand-700">
+                                View
+                              </a>
+                            </div>
+                          ) : <span className="text-ink-300">—</span>}
+                        </td>
                         <td className="text-right">
                           <button onClick={() => setUpdateTarget(f)} className="btn-primary btn btn-sm">
                             <MessageSquare size={13} /> Update
@@ -412,7 +452,7 @@ function FollowupsContent() {
                       </tr>
                       {f.level_history && f.level_history.length > 0 && (
                         <tr className="bg-ink-50/60">
-                          <td colSpan={8} className="px-4 py-3">
+                          <td colSpan={9} className="px-4 py-3">
                             <div className="space-y-2">
                               <p className="text-[11px] font-semibold uppercase tracking-wide text-ink-400">
                                 Follow-up History

@@ -52,7 +52,7 @@ function ScanResult({ result, onClear }: { result: any; onClear: () => void }) {
           <div className="mt-2 text-xs text-ink-500 space-y-0.5">
             <p><strong>Teacher:</strong> {result.data.dispatch.teacher_name}</p>
             <p><strong>School:</strong> {result.data.dispatch.school_name}</p>
-            <p><strong>Follow-up reminder:</strong> {formatDate(result.data.reminder_date)}</p>
+            <p className="text-emerald-700 font-medium">ℹ️ Update delivery status to trigger follow-up reminder</p>
           </div>
         )}
       </div>
@@ -160,6 +160,7 @@ function UpdateDispatchModal({ dispatch, onClose, onSaved }: { dispatch: Dispatc
                 required
               />
               <p className="text-xs text-emerald-700 mt-2">Date when the teacher received the materials</p>
+              <p className="text-xs text-emerald-600 mt-2 font-semibold">✅ A follow-up reminder will be automatically created (delivery date + 10 days)</p>
             </div>
           )}
 

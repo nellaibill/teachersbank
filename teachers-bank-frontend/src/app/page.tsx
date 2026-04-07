@@ -39,10 +39,10 @@ export default function Dashboard() {
         const [teachers, dispatches, pendingFups, overdueFups, recentDisp, todayFups] = await Promise.all([
           teachersApi.list({ limit: 1 }),
           dispatchApi.list({ date: todayDate, limit: 1 }),
-          followupsApi.list({ status: 'Pending', date: todayDate, limit: 1 }),
-          followupsApi.list({ overdue_only: 1, limit: 1 }),
+          followupsApi.list({ status: 'Pending', date: todayDate, dispatch_status: 'Delivered', limit: 1 }),
+          followupsApi.list({ overdue_only: 1, dispatch_status: 'Delivered', limit: 1 }),
           dispatchApi.list({ limit: 5 }),
-          followupsApi.list({ date: 'today', limit: 10 }),
+          followupsApi.list({ date: 'today', dispatch_status: 'Delivered', limit: 10 }),
         ]);
         setStats({
           totalTeachers:   teachers.data?.pagination?.total ?? 0,

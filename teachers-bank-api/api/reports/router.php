@@ -207,7 +207,7 @@ function dispatchReport() {
 
     $whereSQL = implode(' AND ', $where);
     $sql = "
-        SELECT d.id AS dispatch_id, d.dispatch_date, d.pod_date, d.status,
+        SELECT d.id AS dispatch_id, d.dispatch_date, d.delivered_date, d.pod_date, d.po_number, d.status,
                t.teacher_name, t.contact_number, t.school_name, t.barcode,
                t.dt_code, t.sub_code, t.medium, t.std, t.school_type,
                t.teacher_address, t.pincode, t.classifications,

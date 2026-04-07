@@ -2,7 +2,7 @@
 // reset_admin.php
 // ⚠️  Run this file ONCE in your browser to fix the admin password
 // Then DELETE this file immediately after running it!
-// URL: https://iiplrgscbse.com/teachers-bank-api-v2/reset_admin.php
+// URL: https://iiplrgscbse.com/teachers-bank-api-v3/reset_admin.php
 
 require_once __DIR__ . '/config/database.php';
 

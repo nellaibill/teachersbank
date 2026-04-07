@@ -292,7 +292,7 @@ CREATE TABLE dispatch (
 - **dispatch_date**: When materials were sent
 - **pod_date**: When teacher confirmed receipt (initially NULL)
 - **status**: Tracks state ("Dispatched", "Received", etc.)
-- **Auto follow-up creation**: When dispatch is created, system auto-creates `followups.level_1` with `reminder_date = dispatch_date + 10 days`
+- **Auto follow-up creation**: When dispatch status changes to `Delivered`, system auto-creates `followups.level_1` with `reminder_date = delivered_date + 10 days`
 
 ### 3. Followups Table
 
@@ -422,8 +422,12 @@ Input: name="Ram Kumar", subject="MAT,ENG", std="6,7,8", medium="TM,EM", distric
 ```
 Scan: "CHN|MAT|6|TM|01|000042" on 2025-03-28
 → dispatch_id=5, dispatch_date=2025-03-28, teacher="Ram Kumar"
-→ followup_level=1, reminder_date=2025-04-07 auto-created
+→ (No follow-up created yet - waiting for delivery confirmation)
 → UI shows: "✓ Dispatch successful for Ram Kumar"
+
+Update dispatch to status="Delivered", delivered_date=2025-03-30
+→ followup_level=1, reminder_date=2025-04-09 auto-created
+→ UI shows: "✓ Follow-up reminder created (2025-04-09)"
 ```
 
 ---
@@ -433,8 +437,9 @@ Scan: "CHN|MAT|6|TM|01|000042" on 2025-03-28
 **Actors**: Operator / Admin
 
 **Part A: Automatic Reminder Creation**
-- When dispatch created at dispatch_date D:
+- When dispatch status updated to "Delivered" with delivered_date D:
   - System auto-creates followup_level=1, reminder_date=D+10days
+  - Duplicate prevention: Only creates if Level 1 doesn't already exist
 
 **Part B: Overdue Detection & Alerts**
 1. Frontend shows Follow-ups page with all pending follow-ups
@@ -461,12 +466,13 @@ Scan: "CHN|MAT|6|TM|01|000042" on 2025-03-28
 
 **Example**:
 ```
-2025-03-28: Dispatch created → Level 1 reminder_date=2025-04-07
-2025-04-07 (Overdue): UI shows red alert "Ram Kumar's follow-up is overdue"
-2025-04-08: Operator calls, updates followup status='Informed', remarks="Confirmed receipt"
-2025-04-10: Teacher still no POD? Operator creates Level 2, reminder_date=2025-04-20
-2025-04-15: Teacher sends POD, operator updates dispatch.pod_date=2025-04-15
-2025-04-16: Operator marks followup_level=1 status='Completed'
+2025-03-28: Dispatch created (status="Dispatched") → No follow-up yet
+2025-03-30: Status updated to "Delivered", delivered_date=2025-03-30 → Level 1 reminder_date=2025-04-09
+2025-04-09 (Overdue): UI shows red alert "Ram Kumar's follow-up is overdue"
+2025-04-10: Operator calls, updates followup status='Informed', remarks="Confirmed receipt"
+2025-04-15: Teacher still no POD? Operator creates Level 2, reminder_date=2025-04-25
+2025-04-20: Teacher sends POD, operator updates dispatch.pod_date=2025-04-20
+2025-04-21: Operator marks followup_level=1 status='Completed'
 ```
 
 ---
@@ -1084,8 +1090,9 @@ Compact JSON representation of subject-standard-medium relationships.
 ### 4. Follow-up Escalation
 
 **Automatic Creation**:
-- When dispatch created at date D
+- When dispatch status changes to "Delivered" with date D
 - System auto-creates followup_level=1, reminder_date=D+10 days
+- Duplicate prevention: Checks if Level 1 already exists before creating
 
 **Manual Escalation**:
 - If Level-1 not resolved by reminder_date

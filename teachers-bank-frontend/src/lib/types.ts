@@ -58,6 +58,7 @@ export interface Followup {
   dispatch_date?: string;
   delivered_date?: string;
   pod_date?: string;
+  po_number?: string;
   dispatch_status?: string;
   teacher_name?: string;
   contact_number?: string;

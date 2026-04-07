@@ -11,7 +11,7 @@
 ## Project Structure
 
 ```
-teachers-bank-api-v2/
+teachers-bank-api-v3/
 ├── .htaccess                  # URL rewriting rules
 ├── API_CURL_COMMANDS.sh       # cURL test commands
 ├── README.md                  # This file
@@ -59,7 +59,7 @@ a2enmod rewrite
 ```
 
 ### 4. Deploy
-Place the `teachers-bank-api-v2/` folder inside your Apache web root (e.g., `/var/www/html/`).
+Place the `teachers-bank-api-v3/` folder inside your Apache web root (e.g., `/var/www/html/`).
 
 ---
 
@@ -123,7 +123,7 @@ ARL|EN6|X|EM|01|000001
 ## Next.js Integration
 Set in your `.env.local`:
 ```
-NEXT_PUBLIC_API_BASE=http://localhost/teachers-bank-api-v2
+NEXT_PUBLIC_API_BASE=http://localhost/teachers-bank-api-v3
 ```
 
 Example fetch:
