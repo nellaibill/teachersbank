@@ -10,7 +10,7 @@ npm install
 
 # 2. Set your API base URL
 # Edit .env.local:
-NEXT_PUBLIC_API_BASE=http://localhost/teachers-bank-api-v3/index.php
+NEXT_PUBLIC_API_BASE=http://localhost/teachers-bank-api-v4/index.php
 
 # 3. Run development server
 npm run dev

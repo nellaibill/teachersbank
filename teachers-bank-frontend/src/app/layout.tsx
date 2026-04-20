@@ -19,7 +19,9 @@ const OPERATOR_NAV = ['/dispatch'];
 
 function Sidebar({ open, onClose }: { open: boolean; onClose: () => void }) {
   const pathname = usePathname();
-  const { user, logout, isAdmin } = useAuth();
+  const { user, logout, isAdmin, isManager } = useAuth();
+  const canViewFullApp = isAdmin || isManager;
+  const canSeeUserManagement = isAdmin;
 
   return (
     <aside className={cn(
@@ -48,7 +50,7 @@ function Sidebar({ open, onClose }: { open: boolean; onClose: () => void }) {
       {/* Nav */}
       <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
         {NAV
-          .filter(({ href }) => isAdmin || OPERATOR_NAV.includes(href))
+          .filter(({ href }) => canViewFullApp || OPERATOR_NAV.includes(href))
           .map(({ href, icon: Icon, label }) => {
           const active = href === '/' ? pathname === '/' : pathname.startsWith(href);
           return (
@@ -62,11 +64,13 @@ function Sidebar({ open, onClose }: { open: boolean; onClose: () => void }) {
           );
         })}
 
-        {/* Admin only nav */}
-        {isAdmin && (
+        {/* Admin nav */}
+        {canSeeUserManagement && (
           <>
             <div className="px-3 pt-4 pb-1">
-              <p className="text-[10px] font-semibold text-ink-600 uppercase tracking-widest">Admin</p>
+              <p className="text-[10px] font-semibold text-ink-600 uppercase tracking-widest">
+                Admin
+              </p>
             </div>
             <Link href="/users"
               className={cn('nav-link', pathname.startsWith('/users') && 'active')}
@@ -93,7 +97,9 @@ function Sidebar({ open, onClose }: { open: boolean; onClose: () => void }) {
               <div className="flex items-center gap-1">
                 {user.role === 'admin'
                   ? <Shield size={10} className="text-brand-400" />
-                  : <Users size={10} className="text-ink-400" />}
+                  : user.role === 'manager'
+                    ? <UserCog size={10} className="text-amber-400" />
+                    : <Users size={10} className="text-ink-400" />}
                 <p className="text-ink-400 text-[11px] capitalize">{user.role}</p>
               </div>
             </div>

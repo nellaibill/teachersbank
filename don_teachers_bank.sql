@@ -1243,7 +1243,7 @@ CREATE TABLE `users` (
   `name` varchar(150) NOT NULL,
   `email` varchar(150) NOT NULL,
   `password` varchar(255) NOT NULL,
-  `role` enum('admin','operator') NOT NULL DEFAULT 'operator',
+  `role` enum('admin','operator','manager') NOT NULL DEFAULT 'operator',
   `isActive` tinyint(1) NOT NULL DEFAULT 1,
   `last_login` timestamp NULL DEFAULT NULL,
   `created_at` timestamp NOT NULL DEFAULT current_timestamp(),

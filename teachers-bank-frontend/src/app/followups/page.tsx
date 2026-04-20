@@ -10,6 +10,7 @@ import { Followup, Pagination as PaginationType, FOLLOWUP_STATUS_COLORS } from '
 import { formatDate, today, isOverdue, isDueToday } from '@/lib/utils';
 import Pagination from '@/components/ui/Pagination';
 import EmptyState from '@/components/ui/EmptyState';
+import { useAuth } from '@/context/AuthContext';
 import toast from 'react-hot-toast';
 
 function getStatusLabel(status?: string) {
@@ -248,6 +249,7 @@ function UpdateFollowupModal({ followup, onClose, onSaved }: { followup: Followu
 
 function FollowupsContent() {
   const searchParams = useSearchParams();
+  const { isManager } = useAuth();
   const [followups, setFollowups] = useState<Followup[]>([]);
   const [pagination, setPagination] = useState<PaginationType | null>(null);
   const [loading, setLoading] = useState(true);
@@ -299,6 +301,12 @@ function FollowupsContent() {
         </p>
       </div>
 
+      {isManager && (
+        <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+          Manager access is view-only. Follow-up records can be reviewed but not updated.
+        </div>
+      )}
+
       {!loading && overdue.length > 0 && (
         <div className="flex items-start gap-3 p-4 bg-rose-50 border border-rose-200 rounded-xl animate-slide-up">
           <AlertCircle size={18} className="text-rose-500 flex-shrink-0 mt-0.5" />
@@ -310,8 +318,7 @@ function FollowupsContent() {
       )}
 
       <div className="card p-4 flex gap-3 flex-wrap">
-        <div className="flex items-center gap-2 flex-1 min-w-[200px]">
-          <Search size={14} className="text-ink-400" />
+        <div className="flex-1 min-w-[200px]">
           <input
             type="text"
             placeholder="Search by teacher, barcode, or contact..."
@@ -445,9 +452,13 @@ function FollowupsContent() {
                           ) : <span className="text-ink-300">—</span>}
                         </td>
                         <td className="text-right">
-                          <button onClick={() => setUpdateTarget(f)} className="btn-primary btn btn-sm">
-                            <MessageSquare size={13} /> Update
-                          </button>
+                          {isManager ? (
+                            <span className="text-xs text-ink-400">View only</span>
+                          ) : (
+                            <button onClick={() => setUpdateTarget(f)} className="btn-primary btn btn-sm">
+                              <MessageSquare size={13} /> Update
+                            </button>
+                          )}
                         </td>
                       </tr>
                       {f.level_history && f.level_history.length > 0 && (

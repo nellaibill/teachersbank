@@ -9,6 +9,7 @@ import { formatDate } from '@/lib/utils';
 import BarcodeDisplay from '@/components/ui/BarcodeDisplay';
 import EmptyState from '@/components/ui/EmptyState';
 import Pagination from '@/components/ui/Pagination';
+import { useAuth } from '@/context/AuthContext';
 import toast from 'react-hot-toast';
 
 const REPORT_TYPES = [
@@ -98,6 +99,7 @@ function LabelCard({ label, serialNo }: { label: any; serialNo: number }) {
 
 function ReportsContent() {
   const searchParams = useSearchParams();
+  const { isManager } = useAuth();
   const [reportType, setReportType] = useState(searchParams.get('type') || 'consolidated');
   const [data, setData] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
@@ -105,7 +107,7 @@ function ReportsContent() {
   const [limit, setLimit] = useState(20);
   const [filters, setFilters] = useState({
     dt_code: '', sub_code: '', std: '', medium: '', school_type: '',
-    from_date: '', to_date: '', status: ''
+    from_date: '', to_date: '', status: '', contact: ''
   });
 
   const load = useCallback(async () => {
@@ -130,7 +132,7 @@ function ReportsContent() {
   function handlePrint() { window.print(); }
 
   const setFilter = (k: string, v: string) => setFilters(f => ({ ...f, [k]: v }));
-  const clearFilters = () => setFilters({ dt_code: '', sub_code: '', std: '', medium: '', school_type: '', from_date: '', to_date: '', status: '' });
+  const clearFilters = () => setFilters({ dt_code: '', sub_code: '', std: '', medium: '', school_type: '', from_date: '', to_date: '', status: '', contact: '' });
   const hasFilters = Object.values(filters).some(Boolean);
   const isLabelReport = reportType === 'label';
   const pagedData = useMemo(() => {
@@ -241,9 +243,11 @@ function ReportsContent() {
           <button onClick={load} disabled={loading} className="btn-secondary btn">
             <RefreshCw size={15} className={loading ? 'animate-spin' : ''} /> Refresh
           </button>
-          <button onClick={handlePrint} className="btn-primary btn">
-            <Printer size={15} /> Print
-          </button>
+          {!isManager && (
+            <button onClick={handlePrint} className="btn-primary btn">
+              <Printer size={15} /> Print
+            </button>
+          )}
         </div>
         {!isLabelReport && (
           <div className="no-print flex items-center gap-2">
@@ -283,6 +287,12 @@ function ReportsContent() {
           </button>
         ))}
       </div>
+
+      {isManager && (
+        <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 no-print">
+          Manager access is view-only. Printing and data export actions are disabled.
+        </div>
+      )}
 
       <div className="card p-4 space-y-3 no-print">
         <p className="text-xs font-semibold text-ink-500 uppercase tracking-wide flex items-center gap-1.5">
@@ -330,6 +340,17 @@ function ReportsContent() {
               {SCHOOL_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
             </select>
           </div>
+          {reportType === 'label' && (
+            <div>
+              <label className="form-label">Mobile Number</label>
+              <input
+                className="form-input"
+                value={filters.contact}
+                onChange={e => setFilter('contact', e.target.value)}
+                placeholder="Search labels by mobile number"
+              />
+            </div>
+          )}
           {reportType === 'dispatch' && (
             <div>
               <label className="form-label">Status</label>

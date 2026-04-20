@@ -10,6 +10,7 @@ import { formatDate, today } from '@/lib/utils';
 import Pagination from '@/components/ui/Pagination';
 import EmptyState from '@/components/ui/EmptyState';
 import BarcodeDisplay from '@/components/ui/BarcodeDisplay';
+import { useAuth } from '@/context/AuthContext';
 import toast from 'react-hot-toast';
 
 function escapeExcelValue(value: unknown) {
@@ -85,13 +86,18 @@ function UpdateDispatchModal({ dispatch, onClose, onSaved }: { dispatch: Dispatc
       return;
     }
 
-    if (pod_date && pod_date < minAllowedDate) {
+    if (!pod_date) {
+      toast.error('POD date is required');
+      return;
+    }
+
+    if (pod_date < minAllowedDate) {
       toast.error('POD date cannot be before dispatch date');
       return;
     }
 
     // Validation for Dispatched status
-    if (isDispatched && !po_number) {
+    if (isDispatched && !po_number.trim()) {
       toast.error('POD Number is required when status is Dispatched');
       return;
     }
@@ -166,16 +172,16 @@ function UpdateDispatchModal({ dispatch, onClose, onSaved }: { dispatch: Dispatc
 
           {/* ── POD Date (Always shown) ────────────────────────────────────────*/}
           <div>
-            <label className="form-label">POD Date (Proof of Delivery)</label>
+            <label className="form-label">POD Date (Proof of Delivery) *</label>
             <input 
               type="date" 
               className="form-input" 
               value={pod_date} 
               onChange={e => setPodDate(e.target.value)}
               min={minAllowedDate}
-              placeholder="Optional: When proof of delivery was received"
+              required
             />
-            <p className="text-xs text-ink-400 mt-1">When official proof of delivery was received (can be later than delivery date)</p>
+            <p className="text-xs text-ink-400 mt-1">Enter the official proof-of-delivery date. This field is mandatory.</p>
           </div>
 
           <div className="flex gap-3 pt-2">
@@ -191,6 +197,7 @@ function UpdateDispatchModal({ dispatch, onClose, onSaved }: { dispatch: Dispatc
 }
 
 export default function DispatchPage() {
+  const { isManager } = useAuth();
   const [barcode, setBarcode]           = useState('');
   const [dispatchDate, setDispatchDate] = useState(today());
   const [scanning, setScanning]         = useState(false);
@@ -319,44 +326,50 @@ export default function DispatchPage() {
       <div className="space-y-5">
         {/* Scanner panel */}
         <div className="space-y-4">
-          <div className="card space-y-4">
-            <div className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-lg bg-brand-100 flex items-center justify-center">
-                <Scan size={16} className="text-brand-600" />
-              </div>
-              <h2 className="font-semibold text-ink-800">Scan Barcode</h2>
+          {isManager ? (
+            <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+              Manager access is view-only. Dispatch creation and updates are disabled.
             </div>
-
-            <form onSubmit={handleScan} className="space-y-3">
-              <div className="grid gap-3 md:grid-cols-[180px_minmax(0,1fr)_160px] md:items-start">
-                <div>
-                  <label className="form-label">Dispatch Date</label>
-                  <input type="date" className="form-input" value={dispatchDate}
-                    onChange={e => setDispatchDate(e.target.value)} />
+          ) : (
+            <div className="card space-y-4">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-lg bg-brand-100 flex items-center justify-center">
+                  <Scan size={16} className="text-brand-600" />
                 </div>
-
-                <div>
-                  <label className="form-label">Barcode</label>
-                  <input ref={inputRef} autoFocus className="form-input font-mono"
-                    value={barcode} onChange={e => setBarcode(e.target.value)}
-                    placeholder="Scan or type barcode…"
-                    disabled={scanning} />
-                </div>
-
-                <button type="submit" disabled={scanning || !barcode.trim()} className="btn-primary btn w-full md:mt-[26px]">
-                  {scanning ? <><Loader2 size={15} className="animate-spin" /> Processing…</> : <><Scan size={15} /> Dispatch</>}
-                </button>
+                <h2 className="font-semibold text-ink-800">Scan Barcode</h2>
               </div>
 
-              <p className="text-xs text-ink-400 md:pl-[193px]">Connect a barcode scanner or type manually</p>
+              <form onSubmit={handleScan} className="space-y-3">
+                <div className="grid gap-3 md:grid-cols-[180px_minmax(0,1fr)_160px] md:items-start">
+                  <div>
+                    <label className="form-label">Dispatch Date</label>
+                    <input type="date" className="form-input" value={dispatchDate}
+                      onChange={e => setDispatchDate(e.target.value)} />
+                  </div>
 
-              {barcode && (
-                <div className="p-3 bg-ink-50 rounded-lg">
-                  <BarcodeDisplay value={barcode} height={48} fontSize={10} />
+                  <div>
+                    <label className="form-label">Barcode</label>
+                    <input ref={inputRef} autoFocus className="form-input font-mono"
+                      value={barcode} onChange={e => setBarcode(e.target.value)}
+                      placeholder="Scan or type barcode…"
+                      disabled={scanning} />
+                  </div>
+
+                  <button type="submit" disabled={scanning || !barcode.trim()} className="btn-primary btn w-full md:mt-[26px]">
+                    {scanning ? <><Loader2 size={15} className="animate-spin" /> Processing…</> : <><Scan size={15} /> Dispatch</>}
+                  </button>
                 </div>
-              )}
-            </form>
-          </div>
+
+                <p className="text-xs text-ink-400 md:pl-[193px]">Connect a barcode scanner or type manually</p>
+
+                {barcode && (
+                  <div className="p-3 bg-ink-50 rounded-lg">
+                    <BarcodeDisplay value={barcode} height={48} fontSize={10} />
+                  </div>
+                )}
+              </form>
+            </div>
+          )}
 
           {scanResult && <ScanResult result={scanResult} onClear={() => setScanResult(null)} />}
         </div>
@@ -396,11 +409,13 @@ export default function DispatchPage() {
             {/* Search box */}
             <div className="flex gap-3 items-end">
               <div className="flex-1">
-                <label className="form-label text-xs">Search</label>
+                <label className="form-label text-xs">{filterStatus === 'Dispatched' ? 'POD Number Search' : 'Search'}</label>
                 <input type="text" className="form-input py-1.5 text-sm" 
                   value={searchQuery}
                   onChange={e => { setSearchQuery(e.target.value); setPage(1); }}
-                  placeholder="Teacher name, contact number, or POD number" />
+                  placeholder={filterStatus === 'Dispatched'
+                    ? 'Shows records with POD Number; search by POD Number'
+                    : 'Teacher name, contact number, school, or POD number'} />
               </div>
               <div>
                 <label className="form-label text-xs">Rows</label>
@@ -424,9 +439,11 @@ export default function DispatchPage() {
                   <X size={13} /> Clear Search
                 </button>
               )}
-              <button onClick={exportDispatches} disabled={exporting} className="btn-primary btn btn-sm">
-                {exporting ? <><Loader2 size={14} className="animate-spin" /> Exporting...</> : 'Download CSV'}
-              </button>
+              {!isManager && (
+                <button onClick={exportDispatches} disabled={exporting} className="btn-primary btn btn-sm">
+                  {exporting ? <><Loader2 size={14} className="animate-spin" /> Exporting...</> : 'Download CSV'}
+                </button>
+              )}
               <button onClick={loadDispatches} className="btn-secondary btn btn-icon btn-sm">
                 <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
               </button>
@@ -489,10 +506,14 @@ export default function DispatchPage() {
                           </span>
                         </td>
                         <td className="text-right">
-                          <button onClick={() => setUpdateTarget(d)}
-                            className="btn-ghost btn btn-sm text-brand-600">
-                            Update <ChevronDown size={13} />
-                          </button>
+                          {isManager ? (
+                            <span className="text-xs text-ink-400">View only</span>
+                          ) : (
+                            <button onClick={() => setUpdateTarget(d)}
+                              className="btn-ghost btn btn-sm text-brand-600">
+                              Update <ChevronDown size={13} />
+                            </button>
+                          )}
                         </td>
                       </tr>
                     ))}

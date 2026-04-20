@@ -102,6 +102,11 @@ function listDispatches() {
 
         if ($status === 'Pending') {
             $where[] = "(d.po_number IS NULL OR TRIM(d.po_number) = '')";
+        } elseif ($status === 'Dispatched') {
+            $where[] = 'd.status = ?';
+            $params[] = $status;
+            $types .= 's';
+            $where[] = "(d.po_number IS NOT NULL AND TRIM(d.po_number) <> '')";
         } else {
             $where[] = 'd.status = ?';
             $params[] = $status;
@@ -130,14 +135,22 @@ function listDispatches() {
     }
 
     if (!empty($_GET['search'])) {
-        $search = '%' . trim((string)$_GET['search']) . '%';
-        $where[] = '(t.teacher_name LIKE ? OR t.contact_number LIKE ? OR t.school_name LIKE ? OR t.barcode LIKE ? OR d.po_number LIKE ?)';
-        $params[] = $search;
-        $params[] = $search;
-        $params[] = $search;
-        $params[] = $search;
-        $params[] = $search;
-        $types .= 'sssss';
+        $searchTerm = trim((string)$_GET['search']);
+
+        if (!empty($_GET['status']) && trim((string)$_GET['status']) === 'Dispatched') {
+            $where[] = 'd.po_number LIKE ?';
+            $params[] = '%' . $searchTerm . '%';
+            $types .= 's';
+        } else {
+            $search = '%' . $searchTerm . '%';
+            $where[] = '(t.teacher_name LIKE ? OR t.contact_number LIKE ? OR t.school_name LIKE ? OR t.barcode LIKE ? OR d.po_number LIKE ?)';
+            $params[] = $search;
+            $params[] = $search;
+            $params[] = $search;
+            $params[] = $search;
+            $params[] = $search;
+            $types .= 'sssss';
+        }
     }
 
     $whereSQL = implode(' AND ', $where);
@@ -200,12 +213,17 @@ function updateDispatch($id) {
         sendError('Delivery date is required when status is Delivered', 422);
     }
 
-    // Validate: If status is Dispatched, po_number and po_date are required (if not already set)
+    // Validate: If status is Dispatched, po_number is required (if not already set)
     if ($newStatus === 'Dispatched') {
         $poNumberNeeded = empty($body['po_number']) && empty($currentDispatch['po_number']);
         if ($poNumberNeeded) {
             sendError('PO number is required when status is Dispatched', 422);
         }
+    }
+
+    // Validate: POD date is mandatory for dispatch updates
+    if (empty($body['pod_date']) && empty($currentDispatch['pod_date'])) {
+        sendError('POD date is required', 422);
     }
 
     // Validate: Delivery date cannot be before dispatch date

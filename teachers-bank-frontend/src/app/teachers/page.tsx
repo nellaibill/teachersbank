@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useState, useCallback, Suspense, useRef } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { Plus, Search, Filter, Edit2, Trash2, Eye, Phone, X, RefreshCw, Users, Upload, Loader2 } from 'lucide-react';
+import { Plus, Filter, Edit2, Trash2, Eye, Phone, X, RefreshCw, Users, Upload, Loader2 } from 'lucide-react';
 import { teachersApi } from '@/lib/api';
 import { Teacher, Pagination as PaginationType, DISTRICTS, SUBJECTS, MEDIUMS, STANDARDS, SCHOOL_TYPES } from '@/lib/types';
 import { getTeacherClassifications } from '@/lib/teacherClassifications';
@@ -9,6 +9,7 @@ import TeacherFormModal from '@/components/teachers/TeacherFormModal';
 import TeacherDetailModal from '@/components/teachers/TeacherDetailModal';
 import Pagination from '@/components/ui/Pagination';
 import EmptyState from '@/components/ui/EmptyState';
+import { useAuth } from '@/context/AuthContext';
 import toast from 'react-hot-toast';
 
 const IMPORT_FIELDS = [
@@ -95,6 +96,7 @@ function parseTeacherCsv(content: string): Record<string, string>[] {
 
 function TeachersContent() {
   const searchParams = useSearchParams();
+  const { isAdmin, isManager } = useAuth();
 
   const [teachers,    setTeachers]    = useState<Teacher[]>([]);
   const [pagination,  setPagination]  = useState<PaginationType | null>(null);
@@ -201,30 +203,45 @@ function TeachersContent() {
             className="hidden"
             onChange={handleImportFileChange}
           />
-          <button
-            onClick={() => importFileRef.current?.click()}
-            className="btn-secondary btn"
-            disabled={importing}
-          >
-            {importing ? <Loader2 size={16} className="animate-spin" /> : <Upload size={16} />}
-            Import CSV
-          </button>
-          <button onClick={() => { setEditTeacher(null); setShowForm(true); }} className="btn-primary btn">
-            <Plus size={16} /> Add Teacher
-          </button>
+          {isAdmin && (
+            <>
+              <button
+                onClick={() => importFileRef.current?.click()}
+                className="btn-secondary btn"
+                disabled={importing}
+              >
+                {importing ? <Loader2 size={16} className="animate-spin" /> : <Upload size={16} />}
+                Import CSV
+              </button>
+              <button onClick={() => { setEditTeacher(null); setShowForm(true); }} className="btn-primary btn">
+                <Plus size={16} /> Add Teacher
+              </button>
+            </>
+          )}
         </div>
       </div>
+
+      {isManager && (
+        <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+          Manager access is view-only. Teacher records can be viewed but not edited or deleted.
+        </div>
+      )}
 
       {/* Search + Filters */}
       <div className="card p-4 space-y-3">
         <div className="flex gap-3 flex-wrap">
-          <div className="relative flex-1 min-w-[200px]">
-            <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-400" />
-            <input value={search} onChange={e => { setSearch(e.target.value); setPage(1); }}
-              className="form-input pl-9" placeholder="Search by name, phone, school, address…" />
+          <div className="flex-1 min-w-[200px]">
+            <input
+              value={search}
+              onChange={e => { setSearch(e.target.value); setPage(1); }}
+              className="form-input"
+              placeholder="Search by name, phone, school, address…"
+            />
           </div>
-          <button onClick={() => setShowFilters(v => !v)}
-            className={`btn ${showFilters ? 'btn-primary' : 'btn-secondary'} relative`}>
+          <button
+            onClick={() => setShowFilters(v => !v)}
+            className={`btn ${showFilters ? 'btn-primary' : 'btn-secondary'} relative`}
+          >
             <Filter size={15} /> Filters
             {activeFilters > 0 && (
               <span className="absolute -top-1.5 -right-1.5 w-4 h-4 bg-rose-500 text-white text-[10px] rounded-full flex items-center justify-center">
@@ -238,71 +255,93 @@ function TeachersContent() {
         </div>
 
         {showFilters && (
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 pt-3 border-t border-ink-100 animate-slide-up">
-            {/* District */}
+          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-6">
             <div>
               <label className="form-label">District</label>
-              <select className="form-select" value={filters.dt_code}
-                onChange={e => { setFilters(f => ({ ...f, dt_code: e.target.value })); setPage(1); }}>
+              <select
+                className="form-select"
+                value={filters.dt_code}
+                onChange={e => { setFilters(f => ({ ...f, dt_code: e.target.value })); setPage(1); }}
+              >
                 <option value="">All</option>
-                {Object.entries(DISTRICTS).sort((a,b) => a[1].localeCompare(b[1])).map(([code, name]) => (
+                {Object.entries(DISTRICTS).sort((a, b) => a[1].localeCompare(b[1])).map(([code, name]) => (
                   <option key={code} value={code}>{name}</option>
                 ))}
               </select>
             </div>
-            {/* Subject */}
+
             <div>
               <label className="form-label">Subject</label>
-              <select className="form-select" value={filters.sub_code}
-                onChange={e => { setFilters(f => ({ ...f, sub_code: e.target.value })); setPage(1); }}>
+              <select
+                className="form-select"
+                value={filters.sub_code}
+                onChange={e => { setFilters(f => ({ ...f, sub_code: e.target.value })); setPage(1); }}
+              >
                 <option value="">All</option>
                 {Object.entries(SUBJECTS).map(([code, name]) => (
                   <option key={code} value={code}>{name}</option>
                 ))}
               </select>
             </div>
-            {/* Standard */}
+
             <div>
               <label className="form-label">Standard</label>
-              <select className="form-select" value={filters.std}
-                onChange={e => { setFilters(f => ({ ...f, std: e.target.value })); setPage(1); }}>
+              <select
+                className="form-select"
+                value={filters.std}
+                onChange={e => { setFilters(f => ({ ...f, std: e.target.value })); setPage(1); }}
+              >
                 <option value="">All</option>
                 {STANDARDS.map(s => <option key={s} value={s}>Std {s}</option>)}
               </select>
             </div>
-            {/* Medium */}
+
             <div>
               <label className="form-label">Medium</label>
-              <select className="form-select" value={filters.medium}
-                onChange={e => { setFilters(f => ({ ...f, medium: e.target.value })); setPage(1); }}>
+              <select
+                className="form-select"
+                value={filters.medium}
+                onChange={e => { setFilters(f => ({ ...f, medium: e.target.value })); setPage(1); }}
+              >
                 <option value="">All</option>
                 <option value="TM">Tamil Medium</option>
                 <option value="EM">English Medium</option>
               </select>
             </div>
-            {/* School Type */}
+
             <div>
               <label className="form-label">School Type</label>
-              <select className="form-select" value={filters.school_type}
-                onChange={e => { setFilters(f => ({ ...f, school_type: e.target.value })); setPage(1); }}>
+              <select
+                className="form-select"
+                value={filters.school_type}
+                onChange={e => { setFilters(f => ({ ...f, school_type: e.target.value })); setPage(1); }}
+              >
                 <option value="">All</option>
                 {SCHOOL_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
               </select>
             </div>
-            {/* Status */}
+
             <div>
               <label className="form-label">Status</label>
-              <select className="form-select" value={filters.isActive}
-                onChange={e => { setFilters(f => ({ ...f, isActive: e.target.value })); setPage(1); }}>
+              <select
+                className="form-select"
+                value={filters.isActive}
+                onChange={e => { setFilters(f => ({ ...f, isActive: e.target.value })); setPage(1); }}
+              >
                 <option value="1">Active</option>
                 <option value="0">Inactive</option>
                 <option value="">All</option>
               </select>
             </div>
+
             {activeFilters > 0 && (
-              <div className="flex items-end">
-                <button onClick={() => { setFilters({ dt_code:'',sub_code:'',std:'',medium:'',school_type:'',isActive:'1'}); setPage(1); }}
-                  className="btn-ghost btn btn-sm w-full"><X size={13}/> Clear</button>
+              <div className="flex items-end xl:col-span-6">
+                <button
+                  onClick={() => { setFilters({ dt_code: '', sub_code: '', std: '', medium: '', school_type: '', isActive: '1' }); setPage(1); }}
+                  className="btn-ghost btn btn-sm"
+                >
+                  <X size={13} /> Clear
+                </button>
               </div>
             )}
           </div>
@@ -317,8 +356,8 @@ function TeachersContent() {
           </div>
         ) : teachers.length === 0 ? (
           <EmptyState icon={Users} title="No teachers found"
-            description="Try adjusting your filters or add a new teacher"
-            action={<button onClick={() => setShowForm(true)} className="btn-primary btn"><Plus size={15} />Add Teacher</button>} />
+            description={isAdmin ? 'Try adjusting your filters or add a new teacher' : 'Try adjusting your filters'}
+            action={isAdmin ? <button onClick={() => setShowForm(true)} className="btn-primary btn"><Plus size={15} />Add Teacher</button> : undefined} />
         ) : (
           <div className="overflow-x-auto">
             <table className="data-table">
@@ -391,8 +430,14 @@ function TeachersContent() {
                     <td>
                       <div className="flex items-center justify-end gap-1">
                         <button onClick={() => setViewTeacher(t)} className="btn-ghost btn btn-icon btn-sm text-ink-500"><Eye size={15}/></button>
-                        <button onClick={() => { setEditTeacher(t); setShowForm(true); }} className="btn-ghost btn btn-icon btn-sm text-brand-600"><Edit2 size={15}/></button>
-                        <button onClick={() => handleDelete(t)} className="btn-ghost btn btn-icon btn-sm text-rose-500"><Trash2 size={15}/></button>
+                        {isAdmin ? (
+                          <>
+                            <button onClick={() => { setEditTeacher(t); setShowForm(true); }} className="btn-ghost btn btn-icon btn-sm text-brand-600"><Edit2 size={15}/></button>
+                            <button onClick={() => handleDelete(t)} className="btn-ghost btn btn-icon btn-sm text-rose-500"><Trash2 size={15}/></button>
+                          </>
+                        ) : (
+                          <span className="text-xs text-ink-400">View only</span>
+                        )}
                       </div>
                     </td>
                   </tr>
@@ -419,6 +464,7 @@ function TeachersContent() {
       {viewTeacher && (
         <TeacherDetailModal teacher={viewTeacher}
           onClose={() => setViewTeacher(null)}
+          canEdit={isAdmin}
           onEdit={t => { setViewTeacher(null); setEditTeacher(t); setShowForm(true); }} />
       )}
     </div>

@@ -41,12 +41,37 @@ function parseReportClassifications($value): array {
     return is_array($value) ? array_values($value) : [];
 }
 
+function buildReportClassificationMap(array $row): string {
+    $standards = array_values(array_filter(array_map('trim', explode(',', (string)($row['std'] ?? '')))));
+    $mediums = array_values(array_filter(array_map('trim', explode(',', (string)($row['medium'] ?? '')))));
+    $subjects = array_values(array_filter(array_map('trim', explode(',', (string)($row['sub_code'] ?? '')))));
+
+    if (empty($standards) || empty($mediums) || empty($subjects)) {
+        return '';
+    }
+
+    $entries = [];
+    foreach ($standards as $std) {
+        foreach ($mediums as $medium) {
+            $entries[] = $std . '|' . $medium . '|' . implode(',', $subjects);
+        }
+    }
+
+    return implode('; ', $entries);
+}
+
 function expandReportTeacherRow(array $row): array {
     $row['sub_code_arr'] = $row['sub_code'] ? explode(',', $row['sub_code']) : [];
     $row['std_arr'] = $row['std'] ? explode(',', $row['std']) : [];
     $row['medium_arr'] = $row['medium'] ? explode(',', $row['medium']) : [];
-    $row['classification_map'] = $row['classifications'] ?? '';
-    $row['classifications'] = parseReportClassifications($row['classifications'] ?? null);
+
+    $classificationMap = trim((string)($row['classifications'] ?? ''));
+    if ($classificationMap === '') {
+        $classificationMap = buildReportClassificationMap($row);
+    }
+
+    $row['classification_map'] = $classificationMap;
+    $row['classifications'] = parseReportClassifications($classificationMap);
     return $row;
 }
 
@@ -106,6 +131,9 @@ function consolidatedReport() {
         FROM teachers t $whereSQL ORDER BY t.dt_code, t.teacher_name
     ";
     $stmt = $conn->prepare($sql);
+    if (!$stmt) {
+        sendError('Failed to build consolidated report query', 500, [$conn->error]);
+    }
     if ($types) $stmt->bind_param($types, ...$params);
     $stmt->execute();
     $result = $stmt->get_result();
@@ -135,6 +163,9 @@ function labelReport() {
         FROM teachers t $whereSQL ORDER BY t.dt_code, t.teacher_name
     ";
     $stmt = $conn->prepare($sql);
+    if (!$stmt) {
+        sendError('Failed to build label report query', 500, [$conn->error]);
+    }
     if ($types) $stmt->bind_param($types, ...$params);
     $stmt->execute();
     $result = $stmt->get_result();
@@ -193,6 +224,11 @@ function dispatchReport() {
 
         if ($status === 'Pending') {
             $where[] = "(d.po_number IS NULL OR TRIM(d.po_number) = '')";
+        } elseif ($status === 'Dispatched') {
+            $where[] = 'd.status = ?';
+            $params[] = $status;
+            $types .= 's';
+            $where[] = "(d.po_number IS NOT NULL AND TRIM(d.po_number) <> '')";
         } else {
             $where[] = 'd.status = ?';
             $params[] = $status;
@@ -219,6 +255,9 @@ function dispatchReport() {
         WHERE $whereSQL ORDER BY d.dispatch_date DESC
     ";
     $stmt = $conn->prepare($sql);
+    if (!$stmt) {
+        sendError('Failed to build dispatch report query', 500, [$conn->error]);
+    }
     if ($types) $stmt->bind_param($types, ...$params);
     $stmt->execute();
     $result = $stmt->get_result();
@@ -249,6 +288,9 @@ function attachDispatchFollowupHistory($conn, array &$rows) {
         WHERE dispatch_id IN ($placeholders)
         ORDER BY dispatch_id ASC, id DESC
     ");
+    if (!$stmt) {
+        sendError('Failed to build follow-up history query', 500, [$conn->error]);
+    }
     $stmt->bind_param($types, ...$ids);
     $stmt->execute();
     $result = $stmt->get_result();
@@ -280,6 +322,9 @@ function schoolAddressReport() {
         FROM teachers t $whereSQL ORDER BY t.dt_code, t.school_name
     ";
     $stmt = $conn->prepare($sql);
+    if (!$stmt) {
+        sendError('Failed to build school address report query', 500, [$conn->error]);
+    }
     if ($types) $stmt->bind_param($types, ...$params);
     $stmt->execute();
     $result = $stmt->get_result();

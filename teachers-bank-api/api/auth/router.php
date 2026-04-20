@@ -33,7 +33,7 @@ switch ($method) {
             }
             $stmt->bind_param('s', $email);
             $stmt->execute();
-            $user = $stmt->get_result()->fetch_assoc();
+            $user = stmt_get_result($stmt)->fetch_assoc();
             $stmt->close();
 
             if ($user) {
@@ -97,7 +97,7 @@ switch ($method) {
             }
             $stmt->bind_param('i', $payload['user_id']);
             $stmt->execute();
-            $user = $stmt->get_result()->fetch_assoc();
+            $user = stmt_get_result($stmt)->fetch_assoc();
             $stmt->close();
             $conn->close();
 

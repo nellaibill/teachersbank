@@ -6,7 +6,7 @@ export interface AuthUser {
   id: number;
   name: string;
   email: string;
-  role: 'admin' | 'operator';
+  role: 'admin' | 'operator' | 'manager';
 }
 
 interface AuthContextType {
@@ -15,11 +15,16 @@ interface AuthContextType {
   login: (email: string, password: string) => Promise<void>;
   logout: () => void;
   isAdmin: boolean;
+  isManager: boolean;
+  canManageUsers: boolean;
 }
 
 const AuthContext = createContext<AuthContextType | null>(null);
 
-const PHP_BASE = 'https://iiplrgscbse.com/teachers-bank-api-v3/index.php';
+const PHP_BASE = (
+  process.env.NEXT_PUBLIC_PHP_API_BASE ||
+  'https://iiplrgscbse.com/teachers-bank-api-v4/'
+).replace(/\/$/, '');
 const PUBLIC_PATHS = ['/login'];
 const OPERATOR_ALLOWED_PATHS = ['/dispatch'];
 const TOKEN_KEY = 'tb_jwt';
@@ -111,7 +116,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, logout, isAdmin: user?.role === 'admin' }}>
+    <AuthContext.Provider
+      value={{
+        user,
+        loading,
+        login,
+        logout,
+        isAdmin: user?.role === 'admin',
+        isManager: user?.role === 'manager',
+        canManageUsers: user?.role === 'admin',
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );

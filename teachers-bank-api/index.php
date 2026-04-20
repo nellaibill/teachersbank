@@ -44,8 +44,14 @@ if (!$id && !empty($_GET['id'])) {
 $protectedResources = ['users', 'teachers', 'dispatch', 'followups', 'reports', 'backup'];
 if (in_array($resource, $protectedResources, true)) {
     $authUser = requireAuth();
-    if (($authUser['role'] ?? '') === 'operator' && $resource !== 'dispatch') {
-        sendError('Forbidden � operators can only access dispatch and logout routes', 403);
+    $role = $authUser['role'] ?? '';
+
+    if ($role === 'operator' && $resource !== 'dispatch') {
+        sendError('Forbidden — operators can only access dispatch and logout routes', 403);
+    }
+
+    if ($role === 'manager' && $method !== 'GET') {
+        sendError('Forbidden — manager access is view only', 403);
     }
 }
 

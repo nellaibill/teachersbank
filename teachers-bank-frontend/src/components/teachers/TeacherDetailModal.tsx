@@ -7,10 +7,11 @@ import { formatDate } from '@/lib/utils';
 interface Props {
   teacher: Teacher;
   onClose: () => void;
-  onEdit: (t: Teacher) => void;
+  onEdit?: (t: Teacher) => void;
+  canEdit?: boolean;
 }
 
-export default function TeacherDetailModal({ teacher, onClose, onEdit }: Props) {
+export default function TeacherDetailModal({ teacher, onClose, onEdit, canEdit = true }: Props) {
   const classifications = getTeacherClassifications(teacher);
 
   return (
@@ -24,9 +25,11 @@ export default function TeacherDetailModal({ teacher, onClose, onEdit }: Props) 
             <p className="text-xs text-ink-400 font-mono mt-0.5">{teacher.barcode}</p>
           </div>
           <div className="flex items-center gap-2">
-            <button onClick={() => onEdit(teacher)} className="btn-secondary btn btn-sm">
-              <Edit2 size={14} /> Edit
-            </button>
+            {canEdit && onEdit && (
+              <button onClick={() => onEdit(teacher)} className="btn-secondary btn btn-sm">
+                <Edit2 size={14} /> Edit
+              </button>
+            )}
             <button onClick={onClose} className="btn-icon btn-ghost"><X size={18} /></button>
           </div>
         </div>

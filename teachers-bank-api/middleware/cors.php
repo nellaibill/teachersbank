@@ -5,6 +5,8 @@ function setCORSHeaders() {
         'http://localhost',
         'https://iiplrgscbse.com',
         'http://iiplrgscbse.com',
+        'https://www.iiplrgscbse.com',
+        'http://www.iiplrgscbse.com',
     ];
 
     $origin = isset($_SERVER['HTTP_ORIGIN']) ? $_SERVER['HTTP_ORIGIN'] : '';

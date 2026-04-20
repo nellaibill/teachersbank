@@ -1,7 +1,10 @@
 // src/lib/api.ts
 import { getAuthToken } from '@/context/AuthContext';
 
-const PHP_BASE = 'https://iiplrgscbse.com/teachers-bank-api-v3/index.php';
+const PHP_BASE = (
+  process.env.NEXT_PUBLIC_PHP_API_BASE ||
+  'https://iiplrgscbse.com/teachers-bank-api-v4/'
+).replace(/\/$/, '');
 
 export async function apiFetch<T = any>(
   route: string,
@@ -30,15 +33,31 @@ export async function apiFetch<T = any>(
     cache: 'no-store',
   });
 
-  const json = await res.json();
+  const raw = await res.text();
+  let json: any = null;
+
+  try {
+    json = raw ? JSON.parse(raw) : null;
+  } catch {
+    if (res.status === 401) {
+      window.location.href = '/login';
+      throw new Error('Session expired');
+    }
+
+    if (/fatal error|warning|parse error/i.test(raw)) {
+      throw new Error('Server error while loading data');
+    }
+
+    throw new Error('Invalid response from server');
+  }
 
   if (res.status === 401) {
     window.location.href = '/login';
-    throw new Error('Session expired');
+    throw new Error(json?.message || 'Session expired');
   }
 
-  if (!res.ok && !json.success) {
-    throw new Error(json.message || 'API error');
+  if (!res.ok || !json?.success) {
+    throw new Error(json?.message || 'API error');
   }
   return json;
 }
@@ -84,7 +103,7 @@ export const backupApi = {
     const token = getAuthToken();
     const urlsToTry = [
       `${PHP_BASE}/api/backup`,
-      'https://iiplrgscbse.com/teachers-bank-api/index.php/api/backup',
+      'https://iiplrgscbse.com/teachers-bank-api-v4/index.php/api/backup',
     ];
 
     let finalBlob: Blob | null = null;

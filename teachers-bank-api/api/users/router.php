@@ -2,7 +2,7 @@
 // api/users/router.php
 // All routes require auth. Create/Edit/Delete/Manage require admin.
 //
-// GET    /api/users          — list all users (admin only)
+// GET    /api/users          — list all users (admin/manager view)
 // POST   /api/users          — create user (admin only)
 // GET    /api/users/{id}     — get user
 // PUT    /api/users/{id}     — update user (admin only)
@@ -25,7 +25,7 @@ switch ($method) {
             );
             $stmt->bind_param('i', $id);
             $stmt->execute();
-            $user = $stmt->get_result()->fetch_assoc();
+            $user = stmt_get_result($stmt)->fetch_assoc();
             $stmt->close();
             $conn->close();
 
@@ -33,8 +33,8 @@ switch ($method) {
             sendSuccess(['user' => $user]);
 
         } else {
-            // List — admin only
-            requireAdmin();
+            // List — admin or manager (view only)
+            requireAdminOrManager();
             $result = $conn->query(
                 'SELECT id, name, email, role, isActive, last_login, created_at FROM users ORDER BY id ASC'
             );
@@ -52,8 +52,8 @@ switch ($method) {
         $errors = validateRequired($body, ['name', 'email', 'password', 'role']);
         if ($errors) sendError('Validation failed', 422, $errors);
 
-        if (!in_array($body['role'], ['admin', 'operator'])) {
-            sendError('Role must be admin or operator', 400);
+        if (!in_array($body['role'], ['admin', 'operator', 'manager'])) {
+            sendError('Role must be admin, manager, or operator', 400);
         }
         if (!filter_var($body['email'], FILTER_VALIDATE_EMAIL)) {
             sendError('Invalid email address', 400);
@@ -68,7 +68,7 @@ switch ($method) {
         $stmt = $conn->prepare('SELECT id FROM users WHERE email = ?');
         $stmt->bind_param('s', $body['email']);
         $stmt->execute();
-        if ($stmt->get_result()->num_rows > 0) {
+        if (stmt_get_result($stmt)->num_rows > 0) {
             $stmt->close(); $conn->close();
             sendError('Email already exists', 409);
         }
@@ -112,7 +112,7 @@ switch ($method) {
         $stmt = $conn->prepare('SELECT * FROM users WHERE id = ?');
         $stmt->bind_param('i', $id);
         $stmt->execute();
-        $user = $stmt->get_result()->fetch_assoc();
+        $user = stmt_get_result($stmt)->fetch_assoc();
         $stmt->close();
         if (!$user) { $conn->close(); sendError('User not found', 404); }
 
@@ -134,7 +134,7 @@ switch ($method) {
         }
         // Only admin can change role and isActive
         if ($authUser['role'] === 'admin') {
-            if (isset($body['role']) && in_array($body['role'], ['admin', 'operator'])) {
+            if (isset($body['role']) && in_array($body['role'], ['admin', 'operator', 'manager'])) {
                 $fields[] = 'role = ?';     $types .= 's'; $values[] = $body['role'];
             }
             if (isset($body['isActive'])) {
