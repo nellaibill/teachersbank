@@ -71,9 +71,9 @@ function LabelCard({ label, serialNo }: { label: any; serialNo: number }) {
           </div>
         )}
 
-        <p className="text-[13px] px-5 font-semibold leading-tight">{label.teacher_name || '-'}</p>
-        <p className="mt-0.5 px-5 text-[10px] leading-snug whitespace-pre-line">{label.teacher_address || '-'} - {districtWithPin}</p>
-        <p className="mt-0.5 px-5 text-[12px] font-semibold">Ph: {label.contact_number || '-'}  </p>
+        <p className="text-[22px] px-5 font-semibold leading-tight">{label.teacher_name || '-'}</p>
+        <p className="mt-0.5 px-5 text-[20px] leading-snug whitespace-pre-line">{label.teacher_address || '-'} - {districtWithPin}</p>
+        <p className="mt-0.5 px-5 text-[20px] font-semibold">Ph: {label.contact_number || '-'}  </p>
       </div>
 
       <div className="border px-5 border-[#99a6b7] bg-[#e9edf2] py-0.5 text-[13px] font-semibold leading-5 text-[#1f3650] mt-auto">
@@ -142,7 +142,7 @@ function ReportsContent() {
   }, [data, isLabelReport, page, limit]);
   const totalPages = isLabelReport ? 1 : Math.max(1, Math.ceil(data.length / limit));
   const labelPages = reportType === 'label'
-    ? Array.from({ length: Math.ceil(data.length / 9) }, (_, i) => data.slice(i * 9, i * 9 + 9))
+    ? Array.from({ length: Math.ceil(data.length / 6) }, (_, i) => data.slice(i * 6, i * 6 + 6))
     : [];
 
   const labelSummaryRows = useMemo(() => {

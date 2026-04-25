@@ -3,7 +3,7 @@ import { getAuthToken } from '@/context/AuthContext';
 
 const PHP_BASE = (
   process.env.NEXT_PUBLIC_PHP_API_BASE ||
-  'https://iiplrgscbse.com/teachers-bank-api-v4/'
+  'https://iiplrgscbse.com/teachers-bank-api-v4/index.php'
 ).replace(/\/$/, '');
 
 export async function apiFetch<T = any>(
@@ -103,7 +103,7 @@ export const backupApi = {
     const token = getAuthToken();
     const urlsToTry = [
       `${PHP_BASE}/api/backup`,
-      'https://iiplrgscbse.com/teachers-bank-api-v4/index.php/api/backup',
+      'https://iiplrgscbse.com/teachers-bank-api/index.php/api/backup',
     ];
 
     let finalBlob: Blob | null = null;

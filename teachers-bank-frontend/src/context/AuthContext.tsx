@@ -23,7 +23,7 @@ const AuthContext = createContext<AuthContextType | null>(null);
 
 const PHP_BASE = (
   process.env.NEXT_PUBLIC_PHP_API_BASE ||
-  'https://iiplrgscbse.com/teachers-bank-api-v4/'
+  'https://iiplrgscbse.com/teachers-bank-api-v4/index.php'
 ).replace(/\/$/, '');
 const PUBLIC_PATHS = ['/login'];
 const OPERATOR_ALLOWED_PATHS = ['/dispatch'];

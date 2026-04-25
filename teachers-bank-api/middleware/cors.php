@@ -36,6 +36,17 @@ function sendSuccess($data = [], $message = 'Success') {
 }
 
 function sendError($message = 'Error', $statusCode = 400, $errors = []) {
+    $path = $_SERVER['REQUEST_URI'] ?? '';
+    $method = $_SERVER['REQUEST_METHOD'] ?? '';
+    $errorDetails = is_array($errors) ? $errors : [$errors];
+    error_log(sprintf(
+        '[TeachersBankAPI] sendError status=%d method=%s path=%s message=%s details=%s',
+        (int)$statusCode,
+        $method,
+        $path,
+        (string)$message,
+        json_encode($errorDetails, JSON_UNESCAPED_UNICODE)
+    ));
     sendResponse(['success' => false, 'message' => $message, 'errors' => $errors], $statusCode);
 }
 
