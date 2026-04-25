@@ -50,8 +50,11 @@ if (in_array($resource, $protectedResources, true)) {
         sendError('Forbidden — operators can only access dispatch and logout routes', 403);
     }
 
+    // Managers have full access to dispatch and followups, view-only for others
     if ($role === 'manager' && $method !== 'GET') {
-        sendError('Forbidden — manager access is view only', 403);
+        if (!in_array($resource, ['dispatch', 'followups'], true)) {
+            sendError('Forbidden — manager access is view only for this resource', 403);
+        }
     }
 }
 

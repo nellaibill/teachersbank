@@ -1,12 +1,13 @@
 'use client';
 import { useEffect, useState, useCallback, Suspense, useRef } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { Plus, Filter, Edit2, Trash2, Eye, Phone, X, RefreshCw, Users, Upload, Loader2 } from 'lucide-react';
+import { Plus, Filter, Edit2, Trash2, Eye, Phone, X, RefreshCw, Users, Upload, Loader2, AlertCircle } from 'lucide-react';
 import { teachersApi } from '@/lib/api';
 import { Teacher, Pagination as PaginationType, DISTRICTS, SUBJECTS, MEDIUMS, STANDARDS, SCHOOL_TYPES } from '@/lib/types';
 import { getTeacherClassifications } from '@/lib/teacherClassifications';
 import TeacherFormModal from '@/components/teachers/TeacherFormModal';
 import TeacherDetailModal from '@/components/teachers/TeacherDetailModal';
+import DuplicatesModal from '@/components/teachers/DuplicatesModal';
 import Pagination from '@/components/ui/Pagination';
 import EmptyState from '@/components/ui/EmptyState';
 import { useAuth } from '@/context/AuthContext';
@@ -111,6 +112,10 @@ function TeachersContent() {
   const [editTeacher, setEditTeacher] = useState<Teacher | null>(null);
   const [viewTeacher, setViewTeacher] = useState<Teacher | null>(null);
   const [importing, setImporting] = useState(false);
+  const [showDuplicates, setShowDuplicates] = useState(false);
+  const [duplicates, setDuplicates] = useState<any[]>([]);
+  const [totalDuplicateTeachers, setTotalDuplicateTeachers] = useState(0);
+  const [loadingDuplicates, setLoadingDuplicates] = useState(false);
   const importFileRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -139,6 +144,30 @@ function TeachersContent() {
       toast.success('Teacher deactivated');
       load();
     } catch (e: any) { toast.error(e.message); }
+  }
+
+  async function handleCheckDuplicates() {
+    setLoadingDuplicates(true);
+    try {
+      const res = await teachersApi.duplicates();
+      const duplicateGroups = res.data?.duplicates ?? [];
+      setDuplicates(duplicateGroups);
+      
+      // Calculate total duplicate teachers
+      const total = duplicateGroups.reduce((sum: number, group: any) => sum + group.count, 0);
+      setTotalDuplicateTeachers(total);
+      
+      if (duplicateGroups.length === 0) {
+        toast.success('No duplicate records found!');
+      } else {
+        setShowDuplicates(true);
+        toast.success(`Found ${duplicateGroups.length} duplicate groups`);
+      }
+    } catch (e: any) {
+      toast.error(e.message || 'Failed to check duplicates');
+    } finally {
+      setLoadingDuplicates(false);
+    }
   }
 
   async function handleImportFileChange(e: React.ChangeEvent<HTMLInputElement>) {
@@ -212,6 +241,14 @@ function TeachersContent() {
               >
                 {importing ? <Loader2 size={16} className="animate-spin" /> : <Upload size={16} />}
                 Import CSV
+              </button>
+              <button 
+                onClick={handleCheckDuplicates}
+                className="btn-secondary btn"
+                disabled={loadingDuplicates}
+              >
+                {loadingDuplicates ? <Loader2 size={16} className="animate-spin" /> : <AlertCircle size={16} />}
+                Check Duplicates
               </button>
               <button onClick={() => { setEditTeacher(null); setShowForm(true); }} className="btn-primary btn">
                 <Plus size={16} /> Add Teacher
@@ -467,6 +504,16 @@ function TeachersContent() {
           canEdit={isAdmin}
           onEdit={t => { setViewTeacher(null); setEditTeacher(t); setShowForm(true); }} />
       )}
+      <DuplicatesModal
+        isOpen={showDuplicates}
+        duplicates={duplicates}
+        totalGroups={duplicates.length}
+        totalDuplicateTeachers={totalDuplicateTeachers}
+        onClose={() => setShowDuplicates(false)}
+        onSelectTeacher={(teacher) => {
+          setViewTeacher(teacher);
+        }}
+      />
     </div>
   );
 }

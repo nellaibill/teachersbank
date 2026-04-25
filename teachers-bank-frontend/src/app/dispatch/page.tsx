@@ -10,7 +10,6 @@ import { formatDate, today } from '@/lib/utils';
 import Pagination from '@/components/ui/Pagination';
 import EmptyState from '@/components/ui/EmptyState';
 import BarcodeDisplay from '@/components/ui/BarcodeDisplay';
-import { useAuth } from '@/context/AuthContext';
 import toast from 'react-hot-toast';
 
 function escapeExcelValue(value: unknown) {
@@ -197,7 +196,6 @@ function UpdateDispatchModal({ dispatch, onClose, onSaved }: { dispatch: Dispatc
 }
 
 export default function DispatchPage() {
-  const { isManager } = useAuth();
   const [barcode, setBarcode]           = useState('');
   const [dispatchDate, setDispatchDate] = useState(today());
   const [scanning, setScanning]         = useState(false);
@@ -326,20 +324,15 @@ export default function DispatchPage() {
       <div className="space-y-5">
         {/* Scanner panel */}
         <div className="space-y-4">
-          {isManager ? (
-            <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-              Manager access is view-only. Dispatch creation and updates are disabled.
-            </div>
-          ) : (
-            <div className="card space-y-4">
-              <div className="flex items-center gap-2">
-                <div className="w-8 h-8 rounded-lg bg-brand-100 flex items-center justify-center">
-                  <Scan size={16} className="text-brand-600" />
-                </div>
-                <h2 className="font-semibold text-ink-800">Scan Barcode</h2>
+          <div className="card space-y-4">
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 rounded-lg bg-brand-100 flex items-center justify-center">
+                <Scan size={16} className="text-brand-600" />
               </div>
+              <h2 className="font-semibold text-ink-800">Scan Barcode</h2>
+            </div>
 
-              <form onSubmit={handleScan} className="space-y-3">
+            <form onSubmit={handleScan} className="space-y-3">
                 <div className="grid gap-3 md:grid-cols-[180px_minmax(0,1fr)_160px] md:items-start">
                   <div>
                     <label className="form-label">Dispatch Date</label>
@@ -369,10 +362,9 @@ export default function DispatchPage() {
                 )}
               </form>
             </div>
-          )}
 
-          {scanResult && <ScanResult result={scanResult} onClear={() => setScanResult(null)} />}
-        </div>
+            {scanResult && <ScanResult result={scanResult} onClear={() => setScanResult(null)} />}
+          </div>
 
         {/* Dispatch list */}
         <div className="space-y-4">
@@ -439,11 +431,9 @@ export default function DispatchPage() {
                   <X size={13} /> Clear Search
                 </button>
               )}
-              {!isManager && (
-                <button onClick={exportDispatches} disabled={exporting} className="btn-primary btn btn-sm">
-                  {exporting ? <><Loader2 size={14} className="animate-spin" /> Exporting...</> : 'Download CSV'}
-                </button>
-              )}
+              <button onClick={exportDispatches} disabled={exporting} className="btn-primary btn btn-sm">
+                {exporting ? <><Loader2 size={14} className="animate-spin" /> Exporting...</> : 'Download CSV'}
+              </button>
               <button onClick={loadDispatches} className="btn-secondary btn btn-icon btn-sm">
                 <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
               </button>
@@ -506,14 +496,10 @@ export default function DispatchPage() {
                           </span>
                         </td>
                         <td className="text-right">
-                          {isManager ? (
-                            <span className="text-xs text-ink-400">View only</span>
-                          ) : (
-                            <button onClick={() => setUpdateTarget(d)}
-                              className="btn-ghost btn btn-sm text-brand-600">
-                              Update <ChevronDown size={13} />
-                            </button>
-                          )}
+                          <button onClick={() => setUpdateTarget(d)}
+                            className="btn-ghost btn btn-sm text-brand-600">
+                            Update <ChevronDown size={13} />
+                          </button>
                         </td>
                       </tr>
                     ))}

@@ -421,6 +421,12 @@ if ($id) {
 }
 
 function getTeachers() {
+    // Check if duplicates are requested
+    if (!empty($_GET['duplicates'])) {
+        getTeacherDuplicates();
+        return;
+    }
+    
     $conn = getDBConnection();
     $where = ['1=1'];
     $params = [];
@@ -532,6 +538,53 @@ function getTeacher($id) {
 
     $conn->close();
     sendSuccess(array_merge($teacher, ['dispatches' => $dispatches]));
+}
+
+function getTeacherDuplicates() {
+    $conn = getDBConnection();
+    
+    // Get all contact numbers that appear more than once
+    $stmt = $conn->prepare("
+        SELECT contact_number, COUNT(*) as count
+        FROM teachers
+        WHERE contact_number IS NOT NULL AND contact_number != ''
+        GROUP BY contact_number
+        HAVING count > 1
+        ORDER BY count DESC
+    ");
+    $stmt->execute();
+    $duplicateGroups = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+    
+    $duplicates = [];
+    
+    // For each duplicate group, fetch all teachers with that contact number
+    foreach ($duplicateGroups as $group) {
+        $contact = $group['contact_number'];
+        $groupStmt = $conn->prepare("
+            SELECT * FROM teachers
+            WHERE contact_number = ?
+            ORDER BY id ASC
+        ");
+        $groupStmt->bind_param('s', $contact);
+        $groupStmt->execute();
+        $result = $groupStmt->get_result();
+        
+        $teachers = [];
+        while ($row = $result->fetch_assoc()) {
+            $teachers[] = expandTeacher($row);
+        }
+        
+        if (count($teachers) > 1) {
+            $duplicates[] = [
+                'contact_number' => $contact,
+                'count' => count($teachers),
+                'teachers' => $teachers
+            ];
+        }
+    }
+    
+    $conn->close();
+    sendSuccess(['duplicates' => $duplicates, 'total_groups' => count($duplicates)], 'Duplicates retrieved successfully');
 }
 
 function updateTeacher($id) {

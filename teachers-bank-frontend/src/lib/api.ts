@@ -69,6 +69,7 @@ export const teachersApi = {
   import: (rows: object[])               => apiFetch('api/teachers', 'POST', { rows }),
   update: (id: number, data: object)     => apiFetch(`api/teachers/${id}`, 'PUT', data),
   delete: (id: number)                   => apiFetch(`api/teachers/${id}`, 'DELETE'),
+  duplicates: ()                         => apiFetch('api/teachers', 'GET', undefined, { duplicates: '1' }),
 };
 
 export const dispatchApi = {
