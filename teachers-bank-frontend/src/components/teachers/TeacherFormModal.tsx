@@ -13,6 +13,7 @@ import {
 } from '@/lib/types';
 import { flattenClassifications, getTeacherClassifications, serializeClassificationMap } from '@/lib/teacherClassifications';
 import { teachersApi } from '@/lib/api';
+import { decodeHtmlEntities } from '@/lib/utils';
 import toast from 'react-hot-toast';
 
 interface Props {
@@ -157,15 +158,15 @@ export default function TeacherFormModal({ teacher, onClose, onSaved }: Props) {
   const initialClassifications = getTeacherClassifications(teacher);
 
   const [form, setForm] = useState<FormState>({
-    teacher_name: teacher?.teacher_name || '',
+    teacher_name: decodeHtmlEntities(teacher?.teacher_name),
     contact_number: teacher?.contact_number || '',
-    teacher_address: teacher?.teacher_address || '',
+    teacher_address: decodeHtmlEntities(teacher?.teacher_address),
     pincode: teacher?.pincode || '',
     dt_code: teacher?.dt_code || '',
     classifications: initialClassifications.length > 0 ? initialClassifications : [createEmptyClassification()],
-    school_name: teacher?.school_name || '',
+    school_name: decodeHtmlEntities(teacher?.school_name),
     school_type: teacher?.school_type || '',
-    remarks: teacher?.remarks || '',
+    remarks: decodeHtmlEntities(teacher?.remarks),
     isActive: teacher?.isActive ?? 1,
   });
 

@@ -103,6 +103,7 @@ function TeachersContent() {
   const [pagination,  setPagination]  = useState<PaginationType | null>(null);
   const [loading,     setLoading]     = useState(true);
   const [page,        setPage]        = useState(1);
+  const [limit,       setLimit]       = useState(20);
   const [search,      setSearch]      = useState('');
   const [filters, setFilters] = useState({
     dt_code: '', sub_code: '', std: '', medium: '', school_type: '', isActive: '1'
@@ -125,7 +126,7 @@ function TeachersContent() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const params: any = { page, limit: 20, ...filters };
+      const params: any = { page, limit, ...filters };
       if (search.trim()) params.search = search.trim();
       const res = await teachersApi.list(params);
       setTeachers(res.data?.teachers ?? []);
@@ -133,7 +134,7 @@ function TeachersContent() {
     } catch (e: any) {
       toast.error(e.message || 'Failed to load teachers');
     } finally { setLoading(false); }
-  }, [page, search, filters]);
+  }, [page, limit, search, filters]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -274,6 +275,22 @@ function TeachersContent() {
               className="form-input"
               placeholder="Search by name, phone, school, address…"
             />
+          </div>
+          <div>
+            <label className="form-label text-xs">Rows</label>
+            <select
+              className="form-select py-1.5 text-sm min-w-[90px]"
+              value={limit}
+              onChange={e => {
+                setLimit(Number(e.target.value));
+                setPage(1);
+              }}
+            >
+              <option value={10}>10</option>
+              <option value={20}>20</option>
+              <option value={50}>50</option>
+              <option value={100}>100</option>
+            </select>
           </div>
           <button
             onClick={() => setShowFilters(v => !v)}
@@ -416,7 +433,7 @@ function TeachersContent() {
                   const classifications = getTeacherClassifications(t);
                   return (
                   <tr key={t.id} className="animate-fade-in" style={{ animationDelay: `${idx * 30}ms` }}>
-                    <td className="text-ink-400 font-mono text-xs w-10">{t.id}</td>
+                    <td className="text-ink-400 font-mono text-xs w-10">{(page - 1) * (pagination?.limit || limit) + idx + 1}</td>
                     <td>
                       <p className="font-medium text-ink-900">{t.teacher_name}</p>
                       <p className="text-[11px] text-ink-400 font-mono mt-0.5">{t.barcode}</p>

@@ -73,5 +73,6 @@ function validateRequired($data, $fields) {
 }
 
 function sanitize($value) {
-    return htmlspecialchars(strip_tags(trim($value)));
+    if ($value === null) return '';
+    return strip_tags(trim((string)$value));
 }

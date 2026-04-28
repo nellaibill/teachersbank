@@ -183,6 +183,12 @@ function flattenClassifications(array $entries): array {
 }
 
 function expandTeacher(array $teacher): array {
+    foreach (['teacher_name', 'teacher_address', 'school_name', 'remarks'] as $field) {
+        if (isset($teacher[$field]) && is_string($teacher[$field])) {
+            $teacher[$field] = html_entity_decode($teacher[$field], ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        }
+    }
+
     $teacher['sub_code_arr'] = $teacher['sub_code'] ? explode(',', $teacher['sub_code']) : [];
     $teacher['std_arr'] = $teacher['std'] ? explode(',', $teacher['std']) : [];
     $teacher['medium_arr'] = $teacher['medium'] ? explode(',', $teacher['medium']) : [];

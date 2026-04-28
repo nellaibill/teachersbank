@@ -30,7 +30,7 @@ function getStatusFilterValue(searchParams: ReturnType<typeof useSearchParams>) 
 function UpdateFollowupModal({ followup, onClose, onSaved }: { followup: Followup; onClose: () => void; onSaved: () => void }) {
   const [status, setStatus] = useState<Followup['status']>(followup.status === 'Informed' ? 'Processing' : followup.status);
   const [remarks, setRemarks] = useState('');
-  const [reminder_date, setReminderDate] = useState('');
+  const [reminder_date, setReminderDate] = useState(followup.reminder_date || '');
   const [saving, setSaving] = useState(false);
   const shouldShowReminder = !['Completed', 'No Answer'].includes(status);
   const followupHistory = followup.level_history || [];
@@ -71,6 +71,11 @@ function UpdateFollowupModal({ followup, onClose, onSaved }: { followup: Followu
   const parsedClassifications = parseClassifications(followup.classifications);
 
   async function handleSave() {
+    if (shouldShowReminder && !reminder_date) {
+      toast.error('Reminder date is required');
+      return;
+    }
+
     if (shouldShowReminder && reminder_date && reminder_date < minReminderDate) {
       toast.error('Reminder date cannot be in the past');
       return;
@@ -202,12 +207,13 @@ function UpdateFollowupModal({ followup, onClose, onSaved }: { followup: Followu
           </div>
           {shouldShowReminder && (
             <div>
-              <label className="form-label">Reschedule Reminder</label>
+              <label className="form-label">Reschedule Reminder <span className="text-rose-500">*</span></label>
               <input
                 type="date"
                 className="form-input"
                 value={reminder_date}
                 min={minReminderDate}
+                required
                 onChange={e => setReminderDate(e.target.value)}
               />
             </div>
@@ -252,6 +258,7 @@ function FollowupsContent() {
   const [pagination, setPagination] = useState<PaginationType | null>(null);
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
+  const [limit, setLimit] = useState(20);
   const [searchQuery, setSearchQuery] = useState('');
   const [filterDate, setFilterDate] = useState(getDateFilterValue(searchParams));
   const [filterToDate, setFilterToDate] = useState(searchParams.get('to_date') || '');
@@ -268,7 +275,7 @@ function FollowupsContent() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const params: any = { page, limit: 20 };
+      const params: any = { page, limit };
       if (searchQuery) params.search = searchQuery;
       if (filterDate) params.date = filterDate;
       if (filterToDate) params.to_date = filterToDate;
@@ -282,7 +289,7 @@ function FollowupsContent() {
     } finally {
       setLoading(false);
     }
-  }, [page, searchQuery, filterDate, filterToDate, filterStatus]);
+  }, [page, limit, searchQuery, filterDate, filterToDate, filterStatus]);
 
   useEffect(() => {
     load();
@@ -348,6 +355,19 @@ function FollowupsContent() {
           <option>Completed</option>
           <option>No Answer</option>
         </select>
+        <div>
+          <label className="form-label text-xs">Rows</label>
+          <select
+            className="form-select py-1.5 text-sm min-w-[90px]"
+            value={limit}
+            onChange={e => { setLimit(Number(e.target.value)); setPage(1); }}
+          >
+            <option value={10}>10</option>
+            <option value={20}>20</option>
+            <option value={50}>50</option>
+            <option value={100}>100</option>
+          </select>
+        </div>
         <div className="flex gap-2 ml-auto">
           <button
             onClick={() => { setFilterDate(today()); setFilterToDate(''); setFilterStatus('Pending'); setPage(1); }}
