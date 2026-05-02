@@ -34,8 +34,9 @@ function scanAndDispatch() {
     if ($chk->get_result()->fetch_assoc())
         sendError('Already dispatched today. Duplicate dispatch rejected.', 409);
 
-    $ins = $conn->prepare("INSERT INTO dispatch (teacher_id, dispatch_date, status) VALUES (?, ?, 'Dispatched')");
-    $ins->bind_param('is', $teacher['id'], $dispatchDate);
+    $actorName = requireAuth()['name'] ?? '';
+    $ins = $conn->prepare("INSERT INTO dispatch (teacher_id, dispatch_date, status, created_by, updated_by) VALUES (?, ?, 'Dispatched', ?, ?)");
+    $ins->bind_param('isss', $teacher['id'], $dispatchDate, $actorName, $actorName);
     if (!$ins->execute()) sendError('Failed to create dispatch: ' . $ins->error, 500);
 
     $dispatchId   = $conn->insert_id;
@@ -250,6 +251,7 @@ function updateDispatch($id) {
         }
     }
 
+    $actorName = requireAuth()['name'] ?? '';
     $sets = []; $params = []; $types = '';
     foreach (['delivered_date', 'pod_date', 'status', 'po_number'] as $field) {
         if (isset($body[$field])) {
@@ -259,7 +261,9 @@ function updateDispatch($id) {
         }
     }
     if (empty($sets)) sendError('No valid fields to update', 400);
-
+    $sets[] = 'updated_by = ?';
+    $params[] = $actorName;
+    $types .= 's';
     $params[] = $id; $types .= 'i';
     $stmt = $conn->prepare("UPDATE dispatch SET " . implode(', ', $sets) . " WHERE id = ?");
     $stmt->bind_param($types, ...$params);
@@ -279,10 +283,10 @@ function updateDispatch($id) {
             if ($deliveredDate) {
                 $reminderDate = date('Y-m-d', strtotime($deliveredDate . ' +10 days'));
                 $fupIns = $conn->prepare("
-                    INSERT INTO followups (dispatch_id, followup_level, reminder_date, status)
-                    VALUES (?, 1, ?, 'Pending')
+                    INSERT INTO followups (dispatch_id, followup_level, reminder_date, status, created_by)
+                    VALUES (?, 1, ?, 'Pending', ?)
                 ");
-                $fupIns->bind_param('is', $id, $reminderDate);
+                $fupIns->bind_param('iss', $id, $reminderDate, $actorName);
                 $fupIns->execute();
             }
         }

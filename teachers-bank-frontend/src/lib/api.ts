@@ -3,7 +3,7 @@ import { getAuthToken } from '@/context/AuthContext';
 
 const PHP_BASE = (
   process.env.NEXT_PUBLIC_PHP_API_BASE ||
-  'https://iiplrgscbse.com/teachers-bank-api-v4/index.php'
+  'https://iiplrgscbse.com/teachers-bank-api-v5/index.php'
 ).replace(/\/$/, '');
 
 export async function apiFetch<T = any>(
@@ -80,10 +80,11 @@ export const dispatchApi = {
 };
 
 export const followupsApi = {
-  list:   (params?: Record<string, any>) => apiFetch('api/followups', 'GET', undefined, params),
-  get:    (id: number)                   => apiFetch(`api/followups/${id}`),
-  create: (data: object)                 => apiFetch('api/followups', 'POST', data),
-  update: (id: number, data: object)     => apiFetch(`api/followups/${id}`, 'PUT', data),
+  list:      (params?: Record<string, any>) => apiFetch('api/followups', 'GET', undefined, params),
+  get:       (id: number)                   => apiFetch(`api/followups/${id}`),
+  create:    (data: object)                 => apiFetch('api/followups', 'POST', data),
+  update:    (id: number, data: object)     => apiFetch(`api/followups/${id}`, 'PUT', data),
+  dashboard: (params?: Record<string, any>) => apiFetch('api/followups/dashboard', 'GET', undefined, params),
 };
 
 export const reportsApi = {

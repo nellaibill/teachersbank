@@ -1,7 +1,10 @@
 <?php
 // api/followups/router.php
 
-if ($id) {
+if ($subResource === 'dashboard') {
+    if ($method === 'GET') followupDashboard();
+    else sendError('Method not allowed', 405);
+} elseif ($id) {
     switch ($method) {
         case 'GET': getFollowup($id);    break;
         case 'PUT': updateFollowup($id); break;
@@ -170,7 +173,7 @@ function attachLevelHistory($conn, array &$followups) {
     $placeholders = implode(',', array_fill(0, count($ids), '?'));
     $types = str_repeat('i', count($ids));
     $historyStmt = $conn->prepare("
-        SELECT id, dispatch_id, followup_level, reminder_date, status, remarks, updated_at
+        SELECT id, dispatch_id, followup_level, reminder_date, status, remarks, created_by, updated_at
         FROM followups
         WHERE dispatch_id IN ($placeholders)
         ORDER BY dispatch_id ASC, id DESC
@@ -227,8 +230,9 @@ function createFollowup() {
 
     ensureReminderDateIsNotPast($reminderDate);
 
-    $stmt = $conn->prepare("INSERT INTO followups (dispatch_id, followup_level, reminder_date, remarks, status) VALUES (?, ?, ?, ?, 'Pending')");
-    $stmt->bind_param('iiss', $dispatchId, $level, $reminderDate, $remarks);
+    $actorName = requireAuth()['name'] ?? '';
+    $stmt = $conn->prepare("INSERT INTO followups (dispatch_id, followup_level, reminder_date, remarks, status, created_by) VALUES (?, ?, ?, ?, 'Pending', ?)");
+    $stmt->bind_param('iisss', $dispatchId, $level, $reminderDate, $remarks, $actorName);
     if (!$stmt->execute()) sendError('Failed to create followup: ' . $stmt->error, 500);
 
     $newId = $conn->insert_id;
@@ -273,8 +277,9 @@ function updateFollowup($id) {
     $levelRow = $levelStmt->get_result()->fetch_assoc();
     $nextLevel = ((int)($levelRow['max_level'] ?? 0)) + 1;
 
-    $insert = $conn->prepare("INSERT INTO followups (dispatch_id, followup_level, reminder_date, remarks, status) VALUES (?, ?, ?, ?, ?)");
-    $insert->bind_param('iisss', $dispatchId, $nextLevel, $reminderDate, $remarks, $status);
+    $actorName = requireAuth()['name'] ?? '';
+    $insert = $conn->prepare("INSERT INTO followups (dispatch_id, followup_level, reminder_date, remarks, status, created_by) VALUES (?, ?, ?, ?, ?, ?)");
+    $insert->bind_param('iissss', $dispatchId, $nextLevel, $reminderDate, $remarks, $status, $actorName);
     if (!$insert->execute()) sendError('Failed to create followup', 500);
 
     $newId = $conn->insert_id;
@@ -285,4 +290,150 @@ function updateFollowup($id) {
 
     $conn->close();
     sendSuccess(['next_followup' => $nextFollowup], 'Followup updated successfully');
+}
+
+// ─── GET /api/followups/dashboard ─────────────────────────────────────────────
+// ?from_date=YYYY-MM-DD  &to_date=YYYY-MM-DD
+// ?admin=1               → all users (admin only)
+function followupDashboard() {
+    $authUser  = requireAuth();
+    $isAdmin   = ($authUser['role'] ?? '') === 'admin';
+    $adminMode = !empty($_GET['admin']) && $isAdmin;
+
+    // Default: current month
+    $fromDate = $_GET['from_date'] ?? date('Y-m-01');
+    $toDate   = $_GET['to_date']   ?? date('Y-m-d');
+
+    // Basic validation
+    if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $fromDate) ||
+        !preg_match('/^\d{4}-\d{2}-\d{2}$/', $toDate)) {
+        sendError('Invalid date format. Use YYYY-MM-DD', 422);
+    }
+
+    $conn = getDBConnection();
+
+    if ($adminMode) {
+        // ── Admin view: per-user breakdown ───────────────────────────────────
+        $stmt = $conn->prepare("
+            SELECT
+                COALESCE(created_by, '(unknown)') AS user_name,
+                DATE(created_at)                  AS activity_date,
+                status,
+                COUNT(*)                          AS cnt
+            FROM followups
+            WHERE DATE(created_at) BETWEEN ? AND ?
+            GROUP BY user_name, activity_date, status
+            ORDER BY user_name ASC, activity_date ASC
+        ");
+        $stmt->bind_param('ss', $fromDate, $toDate);
+        $stmt->execute();
+        $rows = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+
+        // Aggregate by user
+        $users = [];
+        $overallByStatus = [];
+        foreach ($rows as $row) {
+            $u   = $row['user_name'];
+            $s   = $row['status'];
+            $cnt = (int)$row['cnt'];
+            $d   = $row['activity_date'];
+
+            if (!isset($users[$u])) {
+                $users[$u] = ['name' => $u, 'total' => 0, 'by_status' => [], 'daily' => []];
+            }
+            $users[$u]['total'] += $cnt;
+            $users[$u]['by_status'][$s] = ($users[$u]['by_status'][$s] ?? 0) + $cnt;
+            if (!isset($users[$u]['daily'][$d])) {
+                $users[$u]['daily'][$d] = ['date' => $d, 'total' => 0, 'by_status' => []];
+            }
+            $users[$u]['daily'][$d]['total'] += $cnt;
+            $users[$u]['daily'][$d]['by_status'][$s] = ($users[$u]['daily'][$d]['by_status'][$s] ?? 0) + $cnt;
+
+            $overallByStatus[$s] = ($overallByStatus[$s] ?? 0) + $cnt;
+        }
+
+        // Convert daily map to sorted array for each user
+        $userList = [];
+        foreach ($users as $userData) {
+            $daily = array_values($userData['daily']);
+            usort($daily, fn($a, $b) => strcmp($a['date'], $b['date']));
+            $userData['daily'] = $daily;
+            $userList[] = $userData;
+        }
+        usort($userList, fn($a, $b) => $b['total'] - $a['total']);
+
+        $conn->close();
+        sendSuccess([
+            'from_date' => $fromDate,
+            'to_date'   => $toDate,
+            'overall'   => [
+                'total'     => array_sum($overallByStatus),
+                'by_status' => $overallByStatus,
+            ],
+            'users'     => $userList,
+        ]);
+
+    } else {
+        // ── User view: own activity ───────────────────────────────────────────
+        $myName = $authUser['name'] ?? '';
+
+        $stmt = $conn->prepare("
+            SELECT
+                DATE(created_at)  AS activity_date,
+                status,
+                COUNT(*)          AS cnt
+            FROM followups
+            WHERE created_by = ?
+              AND DATE(created_at) BETWEEN ? AND ?
+            GROUP BY activity_date, status
+            ORDER BY activity_date ASC
+        ");
+        $stmt->bind_param('sss', $myName, $fromDate, $toDate);
+        $stmt->execute();
+        $rows = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+
+        // Build summary & daily
+        $byStatus = [];
+        $dailyMap = [];
+        foreach ($rows as $row) {
+            $s   = $row['status'];
+            $cnt = (int)$row['cnt'];
+            $d   = $row['activity_date'];
+            $byStatus[$s] = ($byStatus[$s] ?? 0) + $cnt;
+            if (!isset($dailyMap[$d])) $dailyMap[$d] = ['date' => $d, 'total' => 0, 'by_status' => []];
+            $dailyMap[$d]['total'] += $cnt;
+            $dailyMap[$d]['by_status'][$s] = ($dailyMap[$d]['by_status'][$s] ?? 0) + $cnt;
+        }
+        $daily = array_values($dailyMap);
+
+        // Recent 10 follow-ups by this user
+        $recent = [];
+        $recStmt = $conn->prepare("
+            SELECT f.id, f.followup_level, f.status, f.reminder_date, f.remarks, f.created_at,
+                   t.teacher_name, t.contact_number, t.school_name
+            FROM followups f
+            JOIN dispatch d  ON f.dispatch_id = d.id
+            JOIN teachers t  ON d.teacher_id  = t.id
+            WHERE f.created_by = ?
+              AND DATE(f.created_at) BETWEEN ? AND ?
+            ORDER BY f.created_at DESC
+            LIMIT 10
+        ");
+        $recStmt->bind_param('sss', $myName, $fromDate, $toDate);
+        $recStmt->execute();
+        $recent = $recStmt->get_result()->fetch_all(MYSQLI_ASSOC);
+
+        $conn->close();
+        sendSuccess([
+            'from_date' => $fromDate,
+            'to_date'   => $toDate,
+            'user'      => $myName,
+            'summary'   => [
+                'total'     => array_sum($byStatus),
+                'by_status' => $byStatus,
+            ],
+            'daily'  => $daily,
+            'recent' => $recent,
+        ]);
+    }
 }

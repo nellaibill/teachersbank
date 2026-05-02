@@ -5,7 +5,7 @@ import { Printer, RefreshCw, Filter, X, FileText } from 'lucide-react';
 import { reportsApi } from '@/lib/api';
 import { SCHOOL_TYPES, MEDIUMS, STANDARDS, DISTRICTS, SUBJECTS, SUBJECT_STANDARD_MAP } from '@/lib/types';
 import { getTeacherClassifications } from '@/lib/teacherClassifications';
-import { formatDate } from '@/lib/utils';
+import { formatDate, decodeHtmlEntities } from '@/lib/utils';
 import BarcodeDisplay from '@/components/ui/BarcodeDisplay';
 import EmptyState from '@/components/ui/EmptyState';
 import Pagination from '@/components/ui/Pagination';
@@ -71,8 +71,8 @@ function LabelCard({ label, serialNo }: { label: any; serialNo: number }) {
           </div>
         )}
 
-        <p className="text-[22px] px-5 font-semibold leading-tight">{label.teacher_name || '-'}</p>
-        <p className="mt-0.5 px-5 text-[20px] leading-snug whitespace-pre-line">{label.teacher_address || '-'} - {districtWithPin}</p>
+        <p className="text-[22px] px-5 font-semibold leading-tight">{decodeHtmlEntities(label.teacher_name) || '-'}</p>
+        <p className="mt-0.5 px-5 text-[20px] leading-snug whitespace-pre-line">{decodeHtmlEntities(label.teacher_address) || '-'} - {districtWithPin}</p>
         <p className="mt-0.5 px-5 text-[20px] font-semibold">Ph: {label.contact_number || '-'}  </p>
       </div>
 
@@ -485,7 +485,7 @@ function ReportsContent() {
                   <tbody>
                     {labelNotesRows.map(row => (
                       <tr key={row.id}>
-                        <td className="border-2 border-black px-4 py-3 align-top font-medium">{row.teacher_name}</td>
+                        <td className="border-2 border-black px-4 py-3 align-top font-medium">{decodeHtmlEntities(row.teacher_name)}</td>
                         <td className="border-2 border-black px-4 py-3 align-top whitespace-pre-line">{row.remarks}</td>
                       </tr>
                     ))}
@@ -513,7 +513,7 @@ function ReportsContent() {
                     <tr key={r.id}>
                       <td className="text-ink-400 text-xs font-mono">{r.sno}</td>
                       <td>
-                        <p className="font-medium text-sm">{r.teacher_name}</p>
+                        <p className="font-medium text-sm">{decodeHtmlEntities(r.teacher_name)}</p>
                         <p className="text-xs text-ink-400 font-mono">{r.barcode}</p>
                       </td>
                       <td className="text-sm">{r.contact_number}</td>
@@ -525,7 +525,7 @@ function ReportsContent() {
                         {r.std && <span className="badge bg-amber-100 text-amber-700 text-xs">Std {r.std}</span>}
                         {r.medium && <span className="badge bg-ink-100 text-ink-600 text-xs">{r.medium}</span>}
                       </div></td>
-                      <td className="max-w-[150px]"><p className="text-xs text-ink-700 truncate">{r.school_name}</p></td>
+                      <td className="max-w-[150px]"><p className="text-xs text-ink-700 truncate">{decodeHtmlEntities(r.school_name)}</p></td>
                       <td className="text-center font-semibold text-sm">{r.total_dispatches ?? 0}</td>
                       <td className="text-sm text-ink-600 whitespace-nowrap">{formatDate(r.last_dispatch_date)}</td>
                       <td>
@@ -561,8 +561,8 @@ function ReportsContent() {
                     <Fragment>
                       <tr>
                         <td>
-                          <p className="font-medium text-sm">{r.teacher_name}</p>
-                          <p className="text-xs text-ink-400">{r.school_name}</p>
+                          <p className="font-medium text-sm">{decodeHtmlEntities(r.teacher_name)}</p>
+                          <p className="text-xs text-ink-400">{decodeHtmlEntities(r.school_name)}</p>
                         </td>
                         <td className="font-mono text-xs text-ink-500">{r.barcode}</td>
                         <td className="text-xs text-ink-700 whitespace-pre-wrap">
@@ -643,8 +643,8 @@ function ReportsContent() {
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 print:grid-cols-4 school-address-grid">
             {pagedData.map((r: any) => (
               <div key={r.id} className="border border-ink-200 rounded-lg p-3 school-address-card">
-                <p className="font-semibold text-sm text-ink-900">{r.school_name}</p>
-                <p className="text-xs text-ink-500 mt-1 whitespace-pre-line">{r.full_address || r.teacher_address || '-'}</p>
+                <p className="font-semibold text-sm text-ink-900">{decodeHtmlEntities(r.school_name)}</p>
+                <p className="text-xs text-ink-500 mt-1 whitespace-pre-line">{decodeHtmlEntities(r.full_address || r.teacher_address) || '-'}</p>
                 <p className="text-xs text-ink-500 mt-1">Ph: {r.contact_number}</p>
               </div>
             ))}

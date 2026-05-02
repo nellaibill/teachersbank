@@ -271,7 +271,7 @@ function findTeacherImportTargetId(mysqli $conn, array $body): ?int {
     return null;
 }
 
-function insertImportedTeacher(mysqli $conn, array $body): void {
+function insertImportedTeacher(mysqli $conn, array $body, string $actorName = ''): void {
     $classifications = getTeacherClassificationsFromBody($body);
     $flattened = flattenClassifications($classifications);
 
@@ -289,14 +289,15 @@ function insertImportedTeacher(mysqli $conn, array $body): void {
     $stmt = $conn->prepare("
         INSERT INTO teachers
             (teacher_name, contact_number, teacher_address, pincode,
-             dt_code, sub_code, std, medium, classifications, school_name, school_type, remarks, barcode, isActive)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+             dt_code, sub_code, std, medium, classifications, school_name, school_type, remarks, barcode, isActive,
+             created_by, updated_by)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ");
     $stmt->bind_param(
-        'sssssssssssssi',
+        'sssssssssssssiss',
         $teacher_name, $contact_number, $teacher_address, $pincode,
         $dt_code, $flattened['sub_code'], $flattened['std'], $flattened['medium'], $flattened['classifications'],
-        $school_name, $school_type, $remarks, $barcode, $isActive
+        $school_name, $school_type, $remarks, $barcode, $isActive, $actorName, $actorName
     );
     if (!$stmt->execute()) {
         throw new RuntimeException('Failed to create teacher: ' . $stmt->error);
@@ -313,7 +314,7 @@ function insertImportedTeacher(mysqli $conn, array $body): void {
     }
 }
 
-function updateImportedTeacher(mysqli $conn, int $id, array $body): void {
+function updateImportedTeacher(mysqli $conn, int $id, array $body, string $actorName = ''): void {
     $classifications = getTeacherClassificationsFromBody($body);
     $flattened = flattenClassifications($classifications);
 
@@ -332,14 +333,14 @@ function updateImportedTeacher(mysqli $conn, int $id, array $body): void {
         UPDATE teachers SET
             teacher_name=?, contact_number=?, teacher_address=?, pincode=?,
             dt_code=?, sub_code=?, std=?, medium=?, classifications=?,
-            school_name=?, school_type=?, remarks=?, barcode=?, isActive=?
+            school_name=?, school_type=?, remarks=?, barcode=?, isActive=?, updated_by=?
         WHERE id=?
     ");
     $stmt->bind_param(
-        'sssssssssssssii',
+        'sssssssssssssisi',
         $teacher_name, $contact_number, $teacher_address, $pincode,
         $dt_code, $flattened['sub_code'], $flattened['std'], $flattened['medium'], $flattened['classifications'],
-        $school_name, $school_type, $remarks, $barcode, $isActive, $id
+        $school_name, $school_type, $remarks, $barcode, $isActive, $actorName, $id
     );
     if (!$stmt->execute()) {
         throw new RuntimeException('Failed to update teacher: ' . $stmt->error);
@@ -353,6 +354,7 @@ function importTeachersBody(array $body) {
         sendError('No teacher rows provided for import', 422);
     }
 
+    $actorName = requireAuth()['name'] ?? '';
     $conn = getDBConnection();
     $summary = [
         'total' => count($rows),
@@ -383,7 +385,7 @@ function importTeachersBody(array $body) {
         }
 
         try {
-            insertImportedTeacher($conn, $teacherBody);
+            insertImportedTeacher($conn, $teacherBody, $actorName);
             $summary['created']++;
         } catch (Throwable $e) {
             $summary['errors'][] = [
@@ -477,6 +479,7 @@ function createTeacherBody(array $body) {
     $errors = validateTeacher($body);
     if ($errors) sendError('Validation failed', 422, $errors);
 
+    $actorName = requireAuth()['name'] ?? '';
     $conn = getDBConnection();
     $classifications = getTeacherClassificationsFromBody($body);
     $flattened = flattenClassifications($classifications);
@@ -493,14 +496,15 @@ function createTeacherBody(array $body) {
     $stmt = $conn->prepare("
         INSERT INTO teachers
             (teacher_name, contact_number, teacher_address, pincode,
-             dt_code, sub_code, std, medium, classifications, school_name, school_type, remarks, isActive)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
+             dt_code, sub_code, std, medium, classifications, school_name, school_type, remarks, isActive,
+             created_by, updated_by)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)
     ");
     $stmt->bind_param(
-        'ssssssssssss',
+        'ssssssssssssss',
         $teacher_name, $contact_number, $teacher_address, $pincode,
         $dt_code, $flattened['sub_code'], $flattened['std'], $flattened['medium'], $flattened['classifications'],
-        $school_name, $school_type, $remarks
+        $school_name, $school_type, $remarks, $actorName, $actorName
     );
     if (!$stmt->execute()) sendError('Failed to create teacher: ' . $stmt->error, 500);
 
@@ -620,18 +624,19 @@ function updateTeacher($id) {
         ? (empty($body['remarks']) ? null : sanitize($body['remarks']))
         : null;
 
+    $actorName = requireAuth()['name'] ?? '';
     $stmt = $conn->prepare("
         UPDATE teachers SET
             teacher_name=?, contact_number=?, teacher_address=?, pincode=?,
             dt_code=?, sub_code=?, std=?, medium=?, classifications=?,
-            school_name=?, school_type=?, remarks=?, isActive=?
+            school_name=?, school_type=?, remarks=?, isActive=?, updated_by=?
         WHERE id=?
     ");
     $stmt->bind_param(
-        'ssssssssssssii',
+        'ssssssssssssssi',
         $teacher_name, $contact_number, $teacher_address, $pincode,
         $dt_code, $flattened['sub_code'], $flattened['std'], $flattened['medium'], $flattened['classifications'],
-        $school_name, $school_type, $remarks, $isActive, $id
+        $school_name, $school_type, $remarks, $isActive, $actorName, $id
     );
     if (!$stmt->execute()) sendError('Failed to update teacher: ' . $stmt->error, 500);
 

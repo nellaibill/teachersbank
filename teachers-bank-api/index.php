@@ -28,11 +28,13 @@ $segments = array_values(array_filter(explode('/', $path)));
 
 // Handle both /api/teachers and /teachers (Next.js rewrite strips /api prefix)
 if (isset($segments[0]) && $segments[0] === 'api') {
-    $resource = $segments[1] ?? '';
-    $id       = isset($segments[2]) && is_numeric($segments[2]) ? (int)$segments[2] : null;
+    $resource    = $segments[1] ?? '';
+    $id          = isset($segments[2]) && is_numeric($segments[2]) ? (int)$segments[2] : null;
+    $subResource = (isset($segments[2]) && !is_numeric($segments[2])) ? $segments[2] : '';
 } else {
-    $resource = $segments[0] ?? '';
-    $id       = isset($segments[1]) && is_numeric($segments[1]) ? (int)$segments[1] : null;
+    $resource    = $segments[0] ?? '';
+    $id          = isset($segments[1]) && is_numeric($segments[1]) ? (int)$segments[1] : null;
+    $subResource = (isset($segments[1]) && !is_numeric($segments[1])) ? $segments[1] : '';
 }
 
 if (!$id && !empty($_GET['id'])) {

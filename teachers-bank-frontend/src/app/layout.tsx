@@ -3,17 +3,18 @@ import './globals.css';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { Toaster } from 'react-hot-toast';
-import { Users, Package, Bell, BarChart2, GraduationCap, Menu, X, Shield, LogOut, UserCog } from 'lucide-react';
+import { Users, Package, Bell, BarChart2, GraduationCap, Menu, X, Shield, LogOut, UserCog, TrendingUp } from 'lucide-react';
 import { useState } from 'react';
 import { cn } from '@/lib/utils';
 import { AuthProvider, useAuth } from '@/context/AuthContext';
 
 const NAV = [
-  { href: '/',          icon: BarChart2, label: 'Dashboard' },
-  { href: '/teachers',  icon: Users,     label: 'Teachers' },
-  { href: '/dispatch',  icon: Package,   label: 'Dispatch' },
-  { href: '/followups', icon: Bell,      label: 'Follow-ups' },
-  { href: '/reports',   icon: BarChart2, label: 'Reports' },
+  { href: '/',                   icon: BarChart2,   label: 'Dashboard' },
+  { href: '/teachers',           icon: Users,       label: 'Teachers' },
+  { href: '/dispatch',           icon: Package,     label: 'Dispatch' },
+  { href: '/followups',          icon: Bell,        label: 'Follow-ups' },
+  { href: '/followup-dashboard', icon: TrendingUp,  label: 'My Activity' },
+  { href: '/reports',            icon: BarChart2,   label: 'Reports' },
 ];
 const OPERATOR_NAV = ['/dispatch'];
 
@@ -78,6 +79,13 @@ function Sidebar({ open, onClose }: { open: boolean; onClose: () => void }) {
               <UserCog size={17} />
               <span>User Management</span>
               {pathname.startsWith('/users') && <span className="ml-auto w-1.5 h-1.5 rounded-full bg-brand-400" />}
+            </Link>
+            <Link href="/admin/followup-dashboard"
+              className={cn('nav-link', pathname.startsWith('/admin/followup-dashboard') && 'active')}
+              onClick={onClose}>
+              <TrendingUp size={17} />
+              <span>Follow-up Analytics</span>
+              {pathname.startsWith('/admin/followup-dashboard') && <span className="ml-auto w-1.5 h-1.5 rounded-full bg-brand-400" />}
             </Link>
           </>
         )}

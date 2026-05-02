@@ -6,7 +6,7 @@ import {
 } from 'lucide-react';
 import { dispatchApi } from '@/lib/api';
 import { Dispatch, Pagination as PaginationType } from '@/lib/types';
-import { formatDate, today } from '@/lib/utils';
+import { formatDate, today, decodeHtmlEntities } from '@/lib/utils';
 import Pagination from '@/components/ui/Pagination';
 import EmptyState from '@/components/ui/EmptyState';
 import BarcodeDisplay from '@/components/ui/BarcodeDisplay';
@@ -50,8 +50,8 @@ function ScanResult({ result, onClear }: { result: any; onClear: () => void }) {
         <p className="text-sm mt-0.5 text-ink-600">{result.message}</p>
         {success && result.data?.dispatch && (
           <div className="mt-2 text-xs text-ink-500 space-y-0.5">
-            <p><strong>Teacher:</strong> {result.data.dispatch.teacher_name}</p>
-            <p><strong>School:</strong> {result.data.dispatch.school_name}</p>
+            <p><strong>Teacher:</strong> {decodeHtmlEntities(result.data.dispatch.teacher_name)}</p>
+            <p><strong>School:</strong> {decodeHtmlEntities(result.data.dispatch.school_name)}</p>
             <p className="text-emerald-700 font-medium">ℹ️ Update delivery status to trigger follow-up reminder</p>
           </div>
         )}
@@ -129,7 +129,7 @@ function UpdateDispatchModal({ dispatch, onClose, onSaved }: { dispatch: Dispatc
           <button onClick={onClose} className="btn-icon btn-ghost"><X size={18} /></button>
         </div>
         <div className="px-5 py-4 space-y-4">
-          <p className="text-sm text-ink-600"><strong>{dispatch.teacher_name}</strong> — {dispatch.teacher_address || 'N/A'}</p>
+          <p className="text-sm text-ink-600"><strong>{decodeHtmlEntities(dispatch.teacher_name)}</strong> — {decodeHtmlEntities(dispatch.teacher_address) || 'N/A'}</p>
           <div>
             <label className="form-label">Status</label>
             <select className="form-select" value={status} onChange={e => setStatus(e.target.value as any)}>
@@ -468,11 +468,14 @@ export default function DispatchPage() {
                       <tr key={d.id} style={{ animationDelay: `${idx * 25}ms` }} className="animate-fade-in">
                         <td className="text-sm text-ink-500 whitespace-nowrap">{(page - 1) * (pagination?.limit || limit) + idx + 1}</td>
                         <td>
-                          <p className="font-medium text-ink-900 text-sm">{d.teacher_name}</p>
-                          <p className="text-xs text-ink-400 break-words">{d.teacher_address || '—'}</p>
+                          <p className="font-medium text-ink-900 text-sm">{decodeHtmlEntities(d.teacher_name)}</p>
+                          <p className="text-xs text-ink-400 break-words">{decodeHtmlEntities(d.teacher_address) || '—'}</p>
                         </td>
                         <td className="text-sm text-ink-600 whitespace-nowrap">{d.contact_number || '—'}</td>
-                        <td className="text-sm text-ink-600 whitespace-nowrap">{formatDate(d.dispatch_date)}</td>
+                        <td className="text-sm text-ink-600 whitespace-nowrap">
+                          {formatDate(d.dispatch_date)}
+                          {d.created_by && <p className="text-xs text-ink-400 mt-0.5">{d.created_by}</p>}
+                        </td>
                         <td className="text-sm text-ink-600 whitespace-nowrap">
                           {d.po_number ? (
                             <div className="flex items-center gap-2">

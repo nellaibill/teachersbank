@@ -7,7 +7,7 @@ import {
 } from 'lucide-react';
 import { followupsApi } from '@/lib/api';
 import { Followup, Pagination as PaginationType, FOLLOWUP_STATUS_COLORS } from '@/lib/types';
-import { formatDate, today, isOverdue, isDueToday } from '@/lib/utils';
+import { formatDate, today, isOverdue, isDueToday, decodeHtmlEntities } from '@/lib/utils';
 import Pagination from '@/components/ui/Pagination';
 import EmptyState from '@/components/ui/EmptyState';
 import toast from 'react-hot-toast';
@@ -111,9 +111,9 @@ function UpdateFollowupModal({ followup, onClose, onSaved }: { followup: Followu
           <div className="p-4 bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-200 rounded-lg text-sm space-y-3">
             <div className="flex items-start justify-between">
               <div className="flex-1">
-                <p className="font-bold text-ink-900 text-base">{followup.teacher_name}</p>
+                <p className="font-bold text-ink-900 text-base">{decodeHtmlEntities(followup.teacher_name)}</p>
                 <p className="text-ink-600 text-xs mt-0.5">ID: {followup.barcode || 'N/A'}</p>
-                {followup.teacher_address && <p className="text-ink-600 text-xs mt-1"><span className="font-medium">Address:</span> {followup.teacher_address}</p>}
+                {followup.teacher_address && <p className="text-ink-600 text-xs mt-1"><span className="font-medium">Address:</span> {decodeHtmlEntities(followup.teacher_address)}</p>}
               </div>
             </div>
             
@@ -131,10 +131,10 @@ function UpdateFollowupModal({ followup, onClose, onSaved }: { followup: Followu
             <div className="border-t border-blue-100 pt-2">
               <p className="text-xs font-semibold text-ink-700 uppercase mb-1.5">School & Address</p>
               <div className="space-y-1">
-                {followup.school_name && <p className="text-ink-700"><span className="font-medium">School:</span> {followup.school_name}</p>}
+                {followup.school_name && <p className="text-ink-700"><span className="font-medium">School:</span> {decodeHtmlEntities(followup.school_name)}</p>}
                 {(followup.address_1 || followup.address_2 || followup.address_3) && (
                   <p className="text-ink-700">
-                    <span className="font-medium">Address:</span> {[followup.address_1, followup.address_2, followup.address_3].filter(Boolean).join(', ')}
+                    <span className="font-medium">Address:</span> {[followup.address_1, followup.address_2, followup.address_3].filter(Boolean).map(a => decodeHtmlEntities(a)).join(', ')}
                   </p>
                 )}
               </div>
@@ -233,6 +233,7 @@ function UpdateFollowupModal({ followup, onClose, onSaved }: { followup: Followu
                     <span className={`badge text-[11px] ${FOLLOWUP_STATUS_COLORS[level.status] || ''}`}>
                       {getStatusLabel(level.status)}
                     </span>
+                    {level.created_by && <span className="text-ink-400 text-[11px]">by {level.created_by}</span>}
                   </div>
                   <p className="text-ink-500">Reminder: {formatDate(level.reminder_date)}</p>
                   <p className="text-ink-600">{level.remarks || 'No remarks'}</p>
@@ -424,8 +425,8 @@ function FollowupsContent() {
                         style={{ animationDelay: `${idx * 25}ms` }}
                       >
                         <td>
-                          <p className="font-medium text-ink-900 text-sm">{f.teacher_name}</p>
-                          <p className="text-xs text-ink-400 break-words">{f.teacher_address || '—'}</p>
+                          <p className="font-medium text-ink-900 text-sm">{decodeHtmlEntities(f.teacher_name)}</p>
+                          <p className="text-xs text-ink-400 break-words">{decodeHtmlEntities(f.teacher_address) || '—'}</p>
                         </td>
                         <td>
                           <a

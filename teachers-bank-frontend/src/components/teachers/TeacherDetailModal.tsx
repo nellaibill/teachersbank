@@ -116,7 +116,10 @@ export default function TeacherDetailModal({ teacher, onClose, onEdit, canEdit =
             </div>
           )}
 
-          <p className="text-xs text-ink-400">Added {formatDate(teacher.created_at)}</p>
+          <div className="text-xs text-ink-400 space-y-0.5">
+            <p>Added {formatDate(teacher.created_at)}{teacher.created_by && <> by <span className="font-medium text-ink-500">{teacher.created_by}</span></>}</p>
+            {teacher.updated_by && <p>Last updated by <span className="font-medium text-ink-500">{teacher.updated_by}</span></p>}
+          </div>
         </div>
       </div>
     </div>

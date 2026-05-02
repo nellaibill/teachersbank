@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { Users, Package, Bell, TrendingUp, AlertCircle, CheckCircle2, Clock } from 'lucide-react';
 import { teachersApi, dispatchApi, followupsApi } from '@/lib/api';
-import { addDays, formatDate, today } from '@/lib/utils';
+import { addDays, formatDate, today, decodeHtmlEntities } from '@/lib/utils';
 
 interface Stats {
   totalTeachers: number;
@@ -102,8 +102,8 @@ export default function Dashboard() {
               {stats?.recentDispatches.map((d: any) => (
                 <div key={d.id} className="flex items-center justify-between py-2 border-b border-ink-50 last:border-0">
                   <div>
-                    <p className="text-sm font-medium text-ink-800">{d.teacher_name}</p>
-                    <p className="text-xs text-ink-400">{d.school_name}</p>
+                    <p className="text-sm font-medium text-ink-800">{decodeHtmlEntities(d.teacher_name)}</p>
+                    <p className="text-xs text-ink-400">{decodeHtmlEntities(d.school_name)}</p>
                   </div>
                   <div className="text-right">
                     <span className={`badge ${d.status === 'Delivered' ? 'bg-emerald-100 text-emerald-700' : 'bg-brand-100 text-brand-700'}`}>

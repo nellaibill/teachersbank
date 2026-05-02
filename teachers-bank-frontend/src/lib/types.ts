@@ -23,6 +23,8 @@ export interface Teacher {
   isActive: number;
   created_at: string;
   updated_at: string;
+  created_by?: string;
+  updated_by?: string;
   dispatches?: Dispatch[];
 }
 
@@ -36,6 +38,8 @@ export interface Dispatch {
   status: 'Dispatched' | 'Delivered' | 'Returned';
   created_at: string;
   updated_at: string;
+  created_by?: string;
+  updated_by?: string;
   teacher_name?: string;
   contact_number?: string;
   school_name?: string;
@@ -55,6 +59,8 @@ export interface Followup {
   status: 'Pending' | 'Processing' | 'Completed' | 'No Answer' | 'Informed';
   created_at: string;
   updated_at: string;
+  created_by?: string;
+  updated_by?: string;
   dispatch_date?: string;
   delivered_date?: string;
   pod_date?: string;
@@ -79,6 +85,7 @@ export interface Followup {
     reminder_date: string;
     status: 'Pending' | 'Processing' | 'Completed' | 'No Answer' | 'Informed';
     remarks?: string;
+    created_by?: string;
     updated_at?: string;
   }>;
 }
@@ -87,6 +94,50 @@ export interface TeacherClassification {
   std: string;
   medium: string;
   subjects: string[];
+}
+
+// ── Follow-up dashboard types ─────────────────────────────────────────────────
+export interface DashboardDailyEntry {
+  date: string;
+  total: number;
+  by_status: Record<string, number>;
+}
+
+export interface FollowupUserDashboard {
+  from_date: string;
+  to_date: string;
+  user: string;
+  summary: {
+    total: number;
+    by_status: Record<string, number>;
+  };
+  daily: DashboardDailyEntry[];
+  recent: Array<{
+    id: number;
+    followup_level: number;
+    status: string;
+    reminder_date: string;
+    remarks?: string;
+    created_at: string;
+    teacher_name?: string;
+    contact_number?: string;
+    school_name?: string;
+  }>;
+}
+
+export interface FollowupAdminDashboard {
+  from_date: string;
+  to_date: string;
+  overall: {
+    total: number;
+    by_status: Record<string, number>;
+  };
+  users: Array<{
+    name: string;
+    total: number;
+    by_status: Record<string, number>;
+    daily: DashboardDailyEntry[];
+  }>;
 }
 
 export interface Pagination {
