@@ -317,11 +317,11 @@ function followupDashboard() {
         $stmt = $conn->prepare("
             SELECT
                 COALESCE(created_by, '(unknown)') AS user_name,
-                DATE(created_at)                  AS activity_date,
+                DATE(DATE_ADD(created_at, INTERVAL 750 MINUTE))  AS activity_date,
                 status,
                 COUNT(*)                          AS cnt
             FROM followups
-            WHERE DATE(created_at) BETWEEN ? AND ?
+            WHERE DATE(DATE_ADD(created_at, INTERVAL 750 MINUTE)) BETWEEN ? AND ?
             GROUP BY user_name, activity_date, status
             ORDER BY user_name ASC, activity_date ASC
         ");
@@ -379,12 +379,12 @@ function followupDashboard() {
 
         $stmt = $conn->prepare("
             SELECT
-                DATE(created_at)  AS activity_date,
+                DATE(DATE_ADD(created_at, INTERVAL 750 MINUTE))  AS activity_date,
                 status,
                 COUNT(*)          AS cnt
             FROM followups
             WHERE created_by = ?
-              AND DATE(created_at) BETWEEN ? AND ?
+              AND DATE(DATE_ADD(created_at, INTERVAL 750 MINUTE)) BETWEEN ? AND ?
             GROUP BY activity_date, status
             ORDER BY activity_date ASC
         ");
@@ -415,7 +415,7 @@ function followupDashboard() {
             JOIN dispatch d  ON f.dispatch_id = d.id
             JOIN teachers t  ON d.teacher_id  = t.id
             WHERE f.created_by = ?
-              AND DATE(f.created_at) BETWEEN ? AND ?
+              AND DATE(DATE_ADD(f.created_at, INTERVAL 750 MINUTE)) BETWEEN ? AND ?
             ORDER BY f.created_at DESC
             LIMIT 10
         ");
