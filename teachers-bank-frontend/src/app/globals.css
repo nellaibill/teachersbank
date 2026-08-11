@@ -102,9 +102,10 @@ body {
 /* ── Sidebar active ─────────────────────────────────────────── */
 .nav-link {
   @apply flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-ink-400
-         hover:bg-white/10 hover:text-white transition-all duration-150 cursor-pointer;
+         hover:bg-white/10 hover:text-white transition-all duration-150 cursor-pointer relative;
 }
 .nav-link.active { @apply bg-white/15 text-white; }
+
 
 /* ── Barcode container ──────────────────────────────────────── */
 .barcode-wrap svg { max-width: 100%; height: auto; }

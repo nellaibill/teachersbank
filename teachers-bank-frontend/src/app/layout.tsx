@@ -18,7 +18,7 @@ const NAV = [
 ];
 const OPERATOR_NAV = ['/dispatch'];
 
-function Sidebar({ open, onClose }: { open: boolean; onClose: () => void }) {
+function Sidebar({ open, onClose, collapsed, onToggleCollapse }: { open: boolean; onClose: () => void; collapsed?: boolean; onToggleCollapse?: () => void }) {
   const pathname = usePathname();
   const { user, logout, isAdmin, isManager } = useAuth();
   const canViewFullApp = isAdmin || isManager;
@@ -27,25 +27,39 @@ function Sidebar({ open, onClose }: { open: boolean; onClose: () => void }) {
   return (
     <aside className={cn(
       'no-print',
-      'fixed top-0 left-0 h-full z-50 flex flex-col w-[240px]',
+      'fixed top-0 left-0 h-full z-50 flex flex-col',
       'bg-gradient-to-b from-ink-900 to-ink-950',
-      'transition-transform duration-300',
-      open ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
+      'transition-all duration-300',
+      open ? 'translate-x-0' : '-translate-x-full lg:translate-x-0',
+      collapsed ? 'lg:w-[80px]' : 'lg:w-[240px]',
+      'w-[240px]'
     )}>
       {/* Brand */}
       <div className="flex items-center gap-3 px-5 py-5 border-b border-white/10">
-        <div className="w-9 h-9 rounded-xl bg-brand-600 flex items-center justify-center shadow-lg">
+        <div className="w-9 h-9 rounded-xl bg-brand-600 flex items-center justify-center shadow-lg flex-shrink-0">
           <GraduationCap size={20} className="text-white" />
         </div>
-        <div>
-          <p className="text-white font-semibold text-sm leading-tight" style={{ fontFamily: 'Fraunces, serif' }}>
-            Teachers Bank
-          </p>
-          <p className="text-ink-400 text-[11px]">Management System</p>
-        </div>
+        {!collapsed && (
+          <div>
+            <p className="text-white font-semibold text-sm leading-tight" style={{ fontFamily: 'Fraunces, serif' }}>
+              Teachers Bank
+            </p>
+            <p className="text-ink-400 text-[11px]">Management System</p>
+          </div>
+        )}
         <button className="ml-auto lg:hidden text-ink-400 hover:text-white" onClick={onClose}>
           <X size={18} />
         </button>
+        {collapsed === false && (
+          <button className="ml-auto hidden lg:flex text-ink-400 hover:text-white" onClick={onToggleCollapse} title="Collapse sidebar">
+            <Menu size={18} />
+          </button>
+        )}
+        {collapsed === true && (
+          <button className="ml-auto hidden lg:flex text-ink-400 hover:text-white" onClick={onToggleCollapse} title="Expand sidebar">
+            <Menu size={18} />
+          </button>
+        )}
       </div>
 
       {/* Nav */}
@@ -56,11 +70,13 @@ function Sidebar({ open, onClose }: { open: boolean; onClose: () => void }) {
           const active = href === '/' ? pathname === '/' : pathname.startsWith(href);
           return (
             <Link key={href} href={href}
-              className={cn('nav-link', active && 'active')}
+              className={cn('nav-link', active && 'active', collapsed && 'lg:justify-center')}
+              title={collapsed ? label : undefined}
               onClick={onClose}>
-              <Icon size={17} />
-              <span>{label}</span>
-              {active && <span className="ml-auto w-1.5 h-1.5 rounded-full bg-brand-400" />}
+              <Icon size={17} className="flex-shrink-0" />
+              {!collapsed && <span>{label}</span>}
+              {active && !collapsed && <span className="ml-auto w-1.5 h-1.5 rounded-full bg-brand-400" />}
+              {active && collapsed && <span className="absolute right-2 w-1.5 h-1.5 rounded-full bg-brand-400" />}
             </Link>
           );
         })}
@@ -68,24 +84,30 @@ function Sidebar({ open, onClose }: { open: boolean; onClose: () => void }) {
         {/* Admin nav */}
         {canSeeUserManagement && (
           <>
-            <div className="px-3 pt-4 pb-1">
-              <p className="text-[10px] font-semibold text-ink-600 uppercase tracking-widest">
-                Admin
-              </p>
-            </div>
+            {!collapsed && (
+              <div className="px-3 pt-4 pb-1">
+                <p className="text-[10px] font-semibold text-ink-600 uppercase tracking-widest">
+                  Admin
+                </p>
+              </div>
+            )}
             <Link href="/users"
-              className={cn('nav-link', pathname.startsWith('/users') && 'active')}
+              className={cn('nav-link', pathname.startsWith('/users') && 'active', collapsed && 'lg:justify-center')}
+              title={collapsed ? 'User Management' : undefined}
               onClick={onClose}>
-              <UserCog size={17} />
-              <span>User Management</span>
-              {pathname.startsWith('/users') && <span className="ml-auto w-1.5 h-1.5 rounded-full bg-brand-400" />}
+              <UserCog size={17} className="flex-shrink-0" />
+              {!collapsed && <span>User Management</span>}
+              {pathname.startsWith('/users') && !collapsed && <span className="ml-auto w-1.5 h-1.5 rounded-full bg-brand-400" />}
+              {pathname.startsWith('/users') && collapsed && <span className="absolute right-2 w-1.5 h-1.5 rounded-full bg-brand-400" />}
             </Link>
             <Link href="/admin/followup-dashboard"
-              className={cn('nav-link', pathname.startsWith('/admin/followup-dashboard') && 'active')}
+              className={cn('nav-link', pathname.startsWith('/admin/followup-dashboard') && 'active', collapsed && 'lg:justify-center')}
+              title={collapsed ? 'Follow-up Analytics' : undefined}
               onClick={onClose}>
-              <TrendingUp size={17} />
-              <span>Follow-up Analytics</span>
-              {pathname.startsWith('/admin/followup-dashboard') && <span className="ml-auto w-1.5 h-1.5 rounded-full bg-brand-400" />}
+              <TrendingUp size={17} className="flex-shrink-0" />
+              {!collapsed && <span>Follow-up Analytics</span>}
+              {pathname.startsWith('/admin/followup-dashboard') && !collapsed && <span className="ml-auto w-1.5 h-1.5 rounded-full bg-brand-400" />}
+              {pathname.startsWith('/admin/followup-dashboard') && collapsed && <span className="absolute right-2 w-1.5 h-1.5 rounded-full bg-brand-400" />}
             </Link>
           </>
         )}
@@ -100,22 +122,33 @@ function Sidebar({ open, onClose }: { open: boolean; onClose: () => void }) {
                 {user.name.charAt(0).toUpperCase()}
               </span>
             </div>
-            <div className="min-w-0">
-              <p className="text-white text-xs font-semibold truncate">{user.name}</p>
-              <div className="flex items-center gap-1">
-                {user.role === 'admin'
-                  ? <Shield size={10} className="text-brand-400" />
-                  : user.role === 'manager'
-                    ? <UserCog size={10} className="text-amber-400" />
-                    : <Users size={10} className="text-ink-400" />}
-                <p className="text-ink-400 text-[11px] capitalize">{user.role}</p>
+            {!collapsed && (
+              <div className="min-w-0">
+                <p className="text-white text-xs font-semibold truncate">{user.name}</p>
+                <div className="flex items-center gap-1">
+                  {user.role === 'admin'
+                    ? <Shield size={10} className="text-brand-400" />
+                    : user.role === 'manager'
+                      ? <UserCog size={10} className="text-amber-400" />
+                      : <Users size={10} className="text-ink-400" />}
+                  <p className="text-ink-400 text-[11px] capitalize">{user.role}</p>
+                </div>
               </div>
-            </div>
+            )}
           </div>
-          <button onClick={logout}
-            className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs text-ink-400 hover:bg-white/10 hover:text-white transition-colors">
-            <LogOut size={13} /> Sign Out
-          </button>
+          {!collapsed && (
+            <button onClick={logout}
+              className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs text-ink-400 hover:bg-white/10 hover:text-white transition-colors">
+              <LogOut size={13} /> Sign Out
+            </button>
+          )}
+          {collapsed && (
+            <button onClick={logout}
+              className="w-full flex items-center justify-center px-3 py-2 rounded-lg text-xs text-ink-400 hover:bg-white/10 hover:text-white transition-colors"
+              title="Sign Out">
+              <LogOut size={13} />
+            </button>
+          )}
         </div>
       )}
     </aside>
@@ -125,6 +158,7 @@ function Sidebar({ open, onClose }: { open: boolean; onClose: () => void }) {
 function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
+  const [collapsed, setCollapsed] = useState(false);
   const isLoginPage = pathname === '/login';
 
   if (isLoginPage) return <>{children}</>;
@@ -134,8 +168,12 @@ function AppShell({ children }: { children: React.ReactNode }) {
       {open && (
         <div className="fixed inset-0 bg-black/40 z-40 lg:hidden no-print" onClick={() => setOpen(false)} />
       )}
-      <Sidebar open={open} onClose={() => setOpen(false)} />
-      <div className="flex-1 lg:ml-[240px] flex flex-col min-h-screen print:ml-0">
+      <Sidebar open={open} onClose={() => setOpen(false)} collapsed={collapsed} onToggleCollapse={() => setCollapsed(!collapsed)} />
+      <div className={cn(
+        'flex-1 flex flex-col min-h-screen print:ml-0',
+        collapsed ? 'lg:ml-[80px]' : 'lg:ml-[240px]',
+        'transition-all duration-300'
+      )}>
         <header className="lg:hidden sticky top-0 z-30 bg-white border-b border-ink-100 px-4 py-3 flex items-center gap-3 no-print">
           <button onClick={() => setOpen(true)} className="text-ink-600">
             <Menu size={22} />
