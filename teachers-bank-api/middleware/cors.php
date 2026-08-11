@@ -5,6 +5,8 @@ function setCORSHeaders() {
         'http://localhost',
         'https://iiplrgscbse.com',
         'http://iiplrgscbse.com',
+        'https://www.iiplrgscbse.com',
+        'http://www.iiplrgscbse.com',
     ];
 
     $origin = isset($_SERVER['HTTP_ORIGIN']) ? $_SERVER['HTTP_ORIGIN'] : '';
@@ -34,6 +36,17 @@ function sendSuccess($data = [], $message = 'Success') {
 }
 
 function sendError($message = 'Error', $statusCode = 400, $errors = []) {
+    $path = $_SERVER['REQUEST_URI'] ?? '';
+    $method = $_SERVER['REQUEST_METHOD'] ?? '';
+    $errorDetails = is_array($errors) ? $errors : [$errors];
+    error_log(sprintf(
+        '[TeachersBankAPI] sendError status=%d method=%s path=%s message=%s details=%s',
+        (int)$statusCode,
+        $method,
+        $path,
+        (string)$message,
+        json_encode($errorDetails, JSON_UNESCAPED_UNICODE)
+    ));
     sendResponse(['success' => false, 'message' => $message, 'errors' => $errors], $statusCode);
 }
 
@@ -60,5 +73,6 @@ function validateRequired($data, $fields) {
 }
 
 function sanitize($value) {
-    return htmlspecialchars(strip_tags(trim($value)));
+    if ($value === null) return '';
+    return strip_tags(trim((string)$value));
 }

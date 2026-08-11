@@ -5,6 +5,16 @@ export function cn(...inputs: ClassValue[]) {
   return clsx(inputs);
 }
 
+export function decodeHtmlEntities(value?: string | null): string {
+  if (!value) return '';
+  return value
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#0*39;/g, "'");
+}
+
 export function formatDate(date?: string | null): string {
   if (!date) return '—';
   return new Date(date).toLocaleDateString('en-IN', {

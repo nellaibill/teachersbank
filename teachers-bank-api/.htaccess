@@ -4,24 +4,21 @@ RewriteEngine On
 # ── CORS — set headers at Apache level (before PHP runs) ─────────────────────
 # This ensures CORS headers are present even if PHP errors out
 
-SetEnvIf Origin "^http://localhost:3000$"        CORS_ALLOW=1
-SetEnvIf Origin "^http://localhost$"             CORS_ALLOW=1
-SetEnvIf Origin "^https://iiplrgscbse\.com$"    CORS_ALLOW=1
-SetEnvIf Origin "^http://iiplrgscbse\.com$"     CORS_ALLOW=1
+SetEnvIf Origin "^http://localhost:3000$"              CORS_ALLOW=$0
+SetEnvIf Origin "^http://localhost$"                   CORS_ALLOW=$0
+SetEnvIf Origin "^https://iiplrgscbse\.com$"          CORS_ALLOW=$0
+SetEnvIf Origin "^http://iiplrgscbse\.com$"           CORS_ALLOW=$0
+SetEnvIf Origin "^https://www\.iiplrgscbse\.com$"     CORS_ALLOW=$0
+SetEnvIf Origin "^http://www\.iiplrgscbse\.com$"      CORS_ALLOW=$0
 
 Header always set Access-Control-Allow-Methods  "GET, POST, PUT, DELETE, OPTIONS" env=CORS_ALLOW
 Header always set Access-Control-Allow-Headers  "Content-Type, Authorization, X-Requested-With, Accept" env=CORS_ALLOW
 Header always set Access-Control-Allow-Credentials "true" env=CORS_ALLOW
 Header always set Access-Control-Max-Age        "86400" env=CORS_ALLOW
 
-# Reflect the exact Origin back (required when Allow-Credentials: true)
-# Use the incoming request header `Origin` (`%{Origin}i`) instead of
-# an env var expansion which can result in `(null)` when not set.
+# Reflect the exact allowed Origin back
 Header always unset Access-Control-Allow-Origin
-# For development: reflect known allowed origin explicitly to avoid
-# platform-specific expansion issues. This sends a valid Origin value
-# when `CORS_ALLOW` is set.
-Header always set Access-Control-Allow-Origin   "http://localhost:3000" env=CORS_ALLOW
+Header always set Access-Control-Allow-Origin "%{CORS_ALLOW}e" env=CORS_ALLOW
 
 # For unknown origins (Postman, curl) — no credentials, use wildcard
 Header set Access-Control-Allow-Origin "*" env=!CORS_ALLOW

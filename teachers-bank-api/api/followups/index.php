@@ -38,7 +38,11 @@ function listFollowups() {
     // Filter by today's reminders by default if ?date=today
     if (!empty($_GET['date'])) {
         $date = $_GET['date'] === 'today' ? date('Y-m-d') : $_GET['date'];
-        $where[]  = 'f.reminder_date = ?';
+        if (!empty($_GET['to_date']) || !empty($_GET['from_date'])) {
+            $where[] = 'f.reminder_date >= ?';
+        } else {
+            $where[] = 'f.reminder_date = ?';
+        }
         $params[] = $date;
         $types   .= 's';
     }
@@ -82,9 +86,10 @@ function listFollowups() {
 
     $sql = "
         SELECT f.*,
-               d.dispatch_date, d.pod_date, d.status AS dispatch_status,
+               d.dispatch_date, d.delivered_date, d.pod_date, d.po_number, d.status AS dispatch_status,
                t.teacher_name, t.contact_number, t.school_name,
-               t.address_1, t.address_2, t.address_3, t.barcode
+               t.address_1, t.address_2, t.address_3, t.pincode,
+               t.dt_code, t.std, t.medium, t.classifications, t.barcode
         FROM followups f
         JOIN dispatch d ON f.dispatch_id = d.id
         JOIN teachers t ON d.teacher_id = t.id
@@ -120,8 +125,10 @@ function getFollowup($id) {
     $conn = getDBConnection();
     $stmt = $conn->prepare("
         SELECT f.*,
-               d.dispatch_date, d.pod_date, d.status AS dispatch_status,
-               t.teacher_name, t.contact_number, t.school_name, t.barcode
+               d.dispatch_date, d.delivered_date, d.pod_date, d.po_number, d.status AS dispatch_status,
+               t.teacher_name, t.contact_number, t.school_name,
+               t.address_1, t.address_2, t.address_3, t.pincode,
+               t.dt_code, t.std, t.medium, t.classifications, t.barcode
         FROM followups f
         JOIN dispatch d ON f.dispatch_id = d.id
         JOIN teachers t ON d.teacher_id = t.id

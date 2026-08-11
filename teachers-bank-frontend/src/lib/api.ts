@@ -1,7 +1,10 @@
 // src/lib/api.ts
 import { getAuthToken } from '@/context/AuthContext';
 
-const PHP_BASE = 'https://iiplrgscbse.com/teachers-bank-api/index.php';
+const PHP_BASE = (
+  process.env.NEXT_PUBLIC_PHP_API_BASE ||
+  'https://iiplrgscbse.com/teachers-bank-api-v5/index.php'
+).replace(/\/$/, '');
 
 export async function apiFetch<T = any>(
   route: string,
@@ -30,15 +33,31 @@ export async function apiFetch<T = any>(
     cache: 'no-store',
   });
 
-  const json = await res.json();
+  const raw = await res.text();
+  let json: any = null;
+
+  try {
+    json = raw ? JSON.parse(raw) : null;
+  } catch {
+    if (res.status === 401) {
+      window.location.href = '/login';
+      throw new Error('Session expired');
+    }
+
+    if (/fatal error|warning|parse error/i.test(raw)) {
+      throw new Error('Server error while loading data');
+    }
+
+    throw new Error('Invalid response from server');
+  }
 
   if (res.status === 401) {
     window.location.href = '/login';
-    throw new Error('Session expired');
+    throw new Error(json?.message || 'Session expired');
   }
 
-  if (!res.ok && !json.success) {
-    throw new Error(json.message || 'API error');
+  if (!res.ok || !json?.success) {
+    throw new Error(json?.message || 'API error');
   }
   return json;
 }
@@ -47,8 +66,10 @@ export const teachersApi = {
   list:   (params?: Record<string, any>) => apiFetch('api/teachers', 'GET', undefined, params),
   get:    (id: number)                   => apiFetch(`api/teachers/${id}`),
   create: (data: object)                 => apiFetch('api/teachers', 'POST', data),
+  import: (rows: object[])               => apiFetch('api/teachers', 'POST', { rows }),
   update: (id: number, data: object)     => apiFetch(`api/teachers/${id}`, 'PUT', data),
   delete: (id: number)                   => apiFetch(`api/teachers/${id}`, 'DELETE'),
+  duplicates: ()                         => apiFetch('api/teachers', 'GET', undefined, { duplicates: '1' }),
 };
 
 export const dispatchApi = {
@@ -59,10 +80,11 @@ export const dispatchApi = {
 };
 
 export const followupsApi = {
-  list:   (params?: Record<string, any>) => apiFetch('api/followups', 'GET', undefined, params),
-  get:    (id: number)                   => apiFetch(`api/followups/${id}`),
-  create: (data: object)                 => apiFetch('api/followups', 'POST', data),
-  update: (id: number, data: object)     => apiFetch(`api/followups/${id}`, 'PUT', data),
+  list:      (params?: Record<string, any>) => apiFetch('api/followups', 'GET', undefined, params),
+  get:       (id: number)                   => apiFetch(`api/followups/${id}`),
+  create:    (data: object)                 => apiFetch('api/followups', 'POST', data),
+  update:    (id: number, data: object)     => apiFetch(`api/followups/${id}`, 'PUT', data),
+  dashboard: (params?: Record<string, any>) => apiFetch('api/followups/dashboard', 'GET', undefined, params),
 };
 
 export const reportsApi = {
@@ -76,4 +98,71 @@ export const usersApi = {
   create: (data: object)             => apiFetch('api/users', 'POST', data),
   update: (id: number, data: object) => apiFetch(`api/users/${id}`, 'PUT', data),
   delete: (id: number)               => apiFetch(`api/users/${id}`, 'DELETE'),
+};
+
+export const backupApi = {
+  download: async () => {
+    const token = getAuthToken();
+    const urlsToTry = [
+      `${PHP_BASE}/api/backup`,
+      'https://iiplrgscbse.com/teachers-bank-api/index.php/api/backup',
+    ];
+
+    let finalBlob: Blob | null = null;
+    let finalFilename = '';
+    let lastError = 'Failed to download backup';
+    for (const urlToTry of urlsToTry) {
+      const res = await fetch(urlToTry, {
+        method: 'GET',
+        headers: {
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+        },
+        cache: 'no-store',
+      });
+
+      if (!res.ok) {
+        try {
+          const json = await res.json();
+          lastError = json.message || 'Failed to download backup';
+        } catch {
+          lastError = 'Failed to download backup';
+        }
+        continue;
+      }
+
+      const contentType = (res.headers.get('content-type') || '').toLowerCase();
+
+      // If endpoint returns the API info JSON, this base is not serving backup correctly.
+      if (contentType.includes('application/json')) {
+        try {
+          const json = await res.json();
+          lastError = json.message || 'Backup endpoint returned JSON instead of SQL dump';
+        } catch {
+          lastError = 'Backup endpoint returned JSON instead of SQL dump';
+        }
+        continue;
+      }
+
+      const blob = await res.blob();
+      const disposition = res.headers.get('content-disposition') || '';
+      const match = disposition.match(/filename="?([^";]+)"?/i);
+
+      finalBlob = blob;
+      finalFilename = match?.[1] || `teachers_bank_backup_${new Date().toISOString().slice(0, 19).replace(/[:T]/g, '_')}.sql`;
+      break;
+    }
+
+    if (!finalBlob) {
+      throw new Error(lastError);
+    }
+
+    const url = URL.createObjectURL(finalBlob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = finalFilename;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+  },
 };

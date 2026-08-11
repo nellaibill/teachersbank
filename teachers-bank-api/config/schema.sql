@@ -18,6 +18,7 @@ CREATE TABLE teachers (
   sub_code        VARCHAR(255),            -- CSV multi: "MAT,SCI,PHY"
   std             VARCHAR(100),            -- CSV multi: "6,7,8,9"
   medium          VARCHAR(50),             -- CSV multi: "TM,EM"
+  classifications LONGTEXT,               -- compact map: "6|TM|MAT;7|EM|SCI"
   school_name     TEXT,
   school_type     VARCHAR(50),             -- includes CBSE School now
   barcode         TEXT,

@@ -6,7 +6,7 @@ CREATE TABLE IF NOT EXISTS users (
     name        VARCHAR(150) NOT NULL,
     email       VARCHAR(150) NOT NULL UNIQUE,
     password    VARCHAR(255) NOT NULL,          -- bcrypt hashed
-    role        ENUM('admin','operator') NOT NULL DEFAULT 'operator',
+    role        ENUM('admin','operator','manager') NOT NULL DEFAULT 'operator',
     isActive    TINYINT(1) NOT NULL DEFAULT 1,
     last_login  TIMESTAMP NULL,
     created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,

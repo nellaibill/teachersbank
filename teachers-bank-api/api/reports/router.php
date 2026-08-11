@@ -12,6 +12,69 @@ switch ($type) {
     default: sendError('Invalid report type. Use: consolidated, label, dispatch, school_address', 400);
 }
 
+function parseReportClassifications($value): array {
+    if (is_string($value) && trim($value) !== '') {
+        $decoded = json_decode($value, true);
+        if (json_last_error() === JSON_ERROR_NONE && is_array($decoded)) {
+            $value = $decoded;
+        } else {
+            $entries = [];
+            foreach (explode(';', $value) as $rawEntry) {
+                $rawEntry = trim($rawEntry);
+                if ($rawEntry === '') continue;
+
+                [$std, $medium, $subjectsRaw] = array_pad(array_map('trim', explode('|', $rawEntry, 3)), 3, '');
+                $subjects = array_values(array_filter(array_map('trim', explode(',', $subjectsRaw))));
+                if ($std === '' || $medium === '' || empty($subjects)) continue;
+
+                $entries[] = [
+                    'std' => $std,
+                    'medium' => $medium,
+                    'subjects' => $subjects,
+                ];
+            }
+
+            return $entries;
+        }
+    }
+
+    return is_array($value) ? array_values($value) : [];
+}
+
+function buildReportClassificationMap(array $row): string {
+    $standards = array_values(array_filter(array_map('trim', explode(',', (string)($row['std'] ?? '')))));
+    $mediums = array_values(array_filter(array_map('trim', explode(',', (string)($row['medium'] ?? '')))));
+    $subjects = array_values(array_filter(array_map('trim', explode(',', (string)($row['sub_code'] ?? '')))));
+
+    if (empty($standards) || empty($mediums) || empty($subjects)) {
+        return '';
+    }
+
+    $entries = [];
+    foreach ($standards as $std) {
+        foreach ($mediums as $medium) {
+            $entries[] = $std . '|' . $medium . '|' . implode(',', $subjects);
+        }
+    }
+
+    return implode('; ', $entries);
+}
+
+function expandReportTeacherRow(array $row): array {
+    $row['sub_code_arr'] = $row['sub_code'] ? explode(',', $row['sub_code']) : [];
+    $row['std_arr'] = $row['std'] ? explode(',', $row['std']) : [];
+    $row['medium_arr'] = $row['medium'] ? explode(',', $row['medium']) : [];
+
+    $classificationMap = trim((string)($row['classifications'] ?? ''));
+    if ($classificationMap === '') {
+        $classificationMap = buildReportClassificationMap($row);
+    }
+
+    $row['classification_map'] = $classificationMap;
+    $row['classifications'] = parseReportClassifications($classificationMap);
+    return $row;
+}
+
 // Build WHERE clauses for teacher filters
 // Multi-value fields (sub_code, std, medium) use FIND_IN_SET
 function buildTeacherFilters(string $prefix = 't'): array {
@@ -57,7 +120,7 @@ function consolidatedReport() {
 
     $sql = "
         SELECT t.id, t.teacher_name, t.contact_number, t.barcode,
-               t.dt_code, t.sub_code, t.std, t.medium,
+               t.dt_code, t.sub_code, t.std, t.medium, t.classifications,
                t.school_name, t.school_type, t.teacher_address, t.pincode,
                (SELECT COUNT(*) FROM dispatch d WHERE d.teacher_id = t.id) AS total_dispatches,
                (SELECT MAX(d.dispatch_date) FROM dispatch d WHERE d.teacher_id = t.id) AS last_dispatch_date,
@@ -68,16 +131,17 @@ function consolidatedReport() {
         FROM teachers t $whereSQL ORDER BY t.dt_code, t.teacher_name
     ";
     $stmt = $conn->prepare($sql);
+    if (!$stmt) {
+        sendError('Failed to build consolidated report query', 500, [$conn->error]);
+    }
     if ($types) $stmt->bind_param($types, ...$params);
     $stmt->execute();
     $result = $stmt->get_result();
 
     $rows = []; $sno = 1;
     while ($row = $result->fetch_assoc()) {
+        $row = expandReportTeacherRow($row);
         $row['sno']          = $sno++;
-        $row['sub_code_arr'] = $row['sub_code'] ? explode(',', $row['sub_code']) : [];
-        $row['std_arr']      = $row['std']       ? explode(',', $row['std'])      : [];
-        $row['medium_arr']   = $row['medium']    ? explode(',', $row['medium'])   : [];
         $rows[] = $row;
     }
     $conn->close();
@@ -94,16 +158,21 @@ function labelReport() {
     $sql = "
         SELECT t.id, t.teacher_name, t.contact_number, t.barcode,
                t.teacher_address, t.pincode,
-               t.school_name, t.dt_code, t.sub_code, t.medium, t.std
+               t.school_name, t.dt_code, t.sub_code, t.medium, t.std, t.classifications,
+               t.remarks
         FROM teachers t $whereSQL ORDER BY t.dt_code, t.teacher_name
     ";
     $stmt = $conn->prepare($sql);
+    if (!$stmt) {
+        sendError('Failed to build label report query', 500, [$conn->error]);
+    }
     if ($types) $stmt->bind_param($types, ...$params);
     $stmt->execute();
     $result = $stmt->get_result();
 
     $labels = [];
     while ($row = $result->fetch_assoc()) {
+        $row = expandReportTeacherRow($row);
         // Build full address for label printing
         $row['full_address'] = implode("\n", array_filter([
             $row['teacher_address'],
@@ -120,9 +189,52 @@ function dispatchReport() {
     $conn   = getDBConnection();
     $where  = ['1=1']; $params = []; $types = '';
 
-    if (!empty($_GET['from_date'])) { $where[] = 'd.dispatch_date >= ?'; $params[] = $_GET['from_date']; $types .= 's'; }
-    if (!empty($_GET['to_date']))   { $where[] = 'd.dispatch_date <= ?'; $params[] = $_GET['to_date'];   $types .= 's'; }
-    if (!empty($_GET['status']))    { $where[] = 'd.status = ?';         $params[] = $_GET['status'];    $types .= 's'; }
+    foreach (['from_date', 'to_date'] as $dateField) {
+        if (empty($_GET[$dateField])) {
+            continue;
+        }
+
+        $value = (string)$_GET[$dateField];
+        $date = DateTime::createFromFormat('Y-m-d', $value);
+        if (!$date || $date->format('Y-m-d') !== $value) {
+            sendError("Invalid $dateField. Expected YYYY-MM-DD", 422);
+        }
+    }
+
+    if (!empty($_GET['from_date']) && !empty($_GET['to_date']) && $_GET['from_date'] > $_GET['to_date']) {
+        sendError('from_date cannot be later than to_date', 422);
+    }
+
+    if (!empty($_GET['from_date'])) {
+        $where[] = 'd.dispatch_date >= ?';
+        $params[] = $_GET['from_date'];
+        $types .= 's';
+    }
+    if (!empty($_GET['to_date'])) {
+        $where[] = 'd.dispatch_date <= ?';
+        $params[] = $_GET['to_date'];
+        $types .= 's';
+    }
+    if (!empty($_GET['status'])) {
+        $status = trim((string)$_GET['status']);
+        $allowedStatuses = ['Dispatched', 'Delivered', 'Returned', 'Pending'];
+        if (!in_array($status, $allowedStatuses, true)) {
+            sendError('Invalid status. Allowed values: Dispatched, Delivered, Returned, Pending', 422);
+        }
+
+        if ($status === 'Pending') {
+            $where[] = "(d.po_number IS NULL OR TRIM(d.po_number) = '')";
+        } elseif ($status === 'Dispatched') {
+            $where[] = 'd.status = ?';
+            $params[] = $status;
+            $types .= 's';
+            $where[] = "(d.po_number IS NOT NULL AND TRIM(d.po_number) <> '')";
+        } else {
+            $where[] = 'd.status = ?';
+            $params[] = $status;
+            $types .= 's';
+        }
+    }
 
     [$tWhere, $tParams, $tTypes] = buildTeacherFilters();
     $where  = array_merge($where, $tWhere);
@@ -131,10 +243,10 @@ function dispatchReport() {
 
     $whereSQL = implode(' AND ', $where);
     $sql = "
-        SELECT d.id AS dispatch_id, d.dispatch_date, d.pod_date, d.status,
+        SELECT d.id AS dispatch_id, d.dispatch_date, d.delivered_date, d.pod_date, d.po_number, d.status,
                t.teacher_name, t.contact_number, t.school_name, t.barcode,
                t.dt_code, t.sub_code, t.medium, t.std, t.school_type,
-               t.teacher_address, t.pincode,
+               t.teacher_address, t.pincode, t.classifications,
                (SELECT GROUP_CONCAT(f.followup_level ORDER BY f.followup_level)
                 FROM followups f WHERE f.dispatch_id = d.id) AS followup_levels,
                (SELECT f.status FROM followups f WHERE f.dispatch_id = d.id
@@ -143,14 +255,57 @@ function dispatchReport() {
         WHERE $whereSQL ORDER BY d.dispatch_date DESC
     ";
     $stmt = $conn->prepare($sql);
+    if (!$stmt) {
+        sendError('Failed to build dispatch report query', 500, [$conn->error]);
+    }
     if ($types) $stmt->bind_param($types, ...$params);
     $stmt->execute();
     $result = $stmt->get_result();
 
     $rows = [];
     while ($row = $result->fetch_assoc()) $rows[] = $row;
+    attachDispatchFollowupHistory($conn, $rows);
     $conn->close();
     sendSuccess(['report_type' => 'dispatch', 'total' => count($rows), 'records' => $rows]);
+}
+
+function attachDispatchFollowupHistory($conn, array &$rows) {
+    if (empty($rows)) return;
+
+    $dispatchIds = [];
+    foreach ($rows as $row) {
+        $dispatchIds[(int)$row['dispatch_id']] = true;
+    }
+
+    $ids = array_keys($dispatchIds);
+    if (empty($ids)) return;
+
+    $placeholders = implode(',', array_fill(0, count($ids), '?'));
+    $types = str_repeat('i', count($ids));
+    $stmt = $conn->prepare("
+        SELECT id, dispatch_id, followup_level, reminder_date, status, remarks, updated_at
+        FROM followups
+        WHERE dispatch_id IN ($placeholders)
+        ORDER BY dispatch_id ASC, id DESC
+    ");
+    if (!$stmt) {
+        sendError('Failed to build follow-up history query', 500, [$conn->error]);
+    }
+    $stmt->bind_param($types, ...$ids);
+    $stmt->execute();
+    $result = $stmt->get_result();
+
+    $historyMap = [];
+    while ($history = $result->fetch_assoc()) {
+        $dispatchId = (int)$history['dispatch_id'];
+        if (!isset($historyMap[$dispatchId])) $historyMap[$dispatchId] = [];
+        $historyMap[$dispatchId][] = $history;
+    }
+
+    foreach ($rows as &$row) {
+        $historyRows = $historyMap[(int)$row['dispatch_id']] ?? [];
+        $row['followup_history'] = $historyRows;
+    }
 }
 
 // ── School Address Report ─────────────────────────────────────────────────────
@@ -167,6 +322,9 @@ function schoolAddressReport() {
         FROM teachers t $whereSQL ORDER BY t.dt_code, t.school_name
     ";
     $stmt = $conn->prepare($sql);
+    if (!$stmt) {
+        sendError('Failed to build school address report query', 500, [$conn->error]);
+    }
     if ($types) $stmt->bind_param($types, ...$params);
     $stmt->execute();
     $result = $stmt->get_result();

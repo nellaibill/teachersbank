@@ -28,18 +28,42 @@ $segments = array_values(array_filter(explode('/', $path)));
 
 // Handle both /api/teachers and /teachers (Next.js rewrite strips /api prefix)
 if (isset($segments[0]) && $segments[0] === 'api') {
-    $resource = $segments[1] ?? '';
-    $id       = isset($segments[2]) && is_numeric($segments[2]) ? (int)$segments[2] : null;
+    $resource    = $segments[1] ?? '';
+    $id          = isset($segments[2]) && is_numeric($segments[2]) ? (int)$segments[2] : null;
+    $subResource = (isset($segments[2]) && !is_numeric($segments[2])) ? $segments[2] : '';
 } else {
-    $resource = $segments[0] ?? '';
-    $id       = isset($segments[1]) && is_numeric($segments[1]) ? (int)$segments[1] : null;
+    $resource    = $segments[0] ?? '';
+    $id          = isset($segments[1]) && is_numeric($segments[1]) ? (int)$segments[1] : null;
+    $subResource = (isset($segments[1]) && !is_numeric($segments[1])) ? $segments[1] : '';
 }
 
 if (!$id && !empty($_GET['id'])) {
     $id = (int)$_GET['id'];
 }
 
+// Enforce role-based access before routing.
+// Operators can only access dispatch routes (plus auth endpoints such as logout).
+$protectedResources = ['users', 'teachers', 'dispatch', 'followups', 'reports', 'backup'];
+if (in_array($resource, $protectedResources, true)) {
+    $authUser = requireAuth();
+    $role = $authUser['role'] ?? '';
+
+    if ($role === 'operator' && $resource !== 'dispatch') {
+        sendError('Forbidden — operators can only access dispatch and logout routes', 403);
+    }
+
+    // Managers have full access to dispatch and followups, view-only for others
+    if ($role === 'manager' && $method !== 'GET') {
+        if (!in_array($resource, ['dispatch', 'followups'], true)) {
+            sendError('Forbidden — manager access is view only for this resource', 403);
+        }
+    }
+}
+
+
 // ── Route ─────────────────────────────────────────────────────────────────────
+error_log('API routing: resource="' . $resource . '", segments=' . json_encode($segments));
+
 switch ($resource) {
 
     case 'auth':
@@ -72,6 +96,11 @@ switch ($resource) {
         require __DIR__ . '/api/reports/router.php';
         break;
 
+    case 'backup':
+        requireAdmin();
+        require __DIR__ . '/api/backup/router.php';
+        break;
+
     default:
         sendResponse([
             'success'  => true,
@@ -96,6 +125,7 @@ switch ($resource) {
                 'GET/POST /api/followups',
                 'GET/PUT  /api/followups/{id}',
                 'GET /api/reports?type=consolidated|label|dispatch|school_address',
+                'GET /api/backup',
             ]
         ]);
 }

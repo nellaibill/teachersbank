@@ -1,7 +1,7 @@
 <?php
 // api/teachers/router.php
+// CHANGES: remarks field added to createTeacher() and updateTeacher()
 
-// ── Master Data ───────────────────────────────────────────────────────────────
 define('DISTRICTS', [
     'ALR' => 'Ariyalur',       'CGP' => 'Chengalpattu',   'CHN' => 'Chennai',
     'CBE' => 'Coimbatore',     'CUD' => 'Cuddalore',      'DPI' => 'Dharmapuri',
@@ -28,76 +28,387 @@ define('SUBJECTS', [
     'ACC' => 'Accountancy',        'HIS' => 'History',
 ]);
 
-define('STANDARDS',    ['6','7','8','9','10','11','12']);
-define('MEDIUMS',      ['TM' => 'Tamil Medium', 'EM' => 'English Medium']);
+define('SUBJECT_STANDARD_MAP', [
+    'TAM' => ['6','7','8','9','10','11','12'],
+    'ENG' => ['6','7','8','9','10','11','12'],
+    'MAT' => ['6','7','8','9','10','11','12'],
+    'SCI' => ['6','7','8','9','10'],
+    'SS'  => ['6','7','8','9','10'],
+    'PHY' => ['11','12'],
+    'CHE' => ['11','12'],
+    'BIO' => ['11','12'],
+    'BOT' => ['11','12'],
+    'ZOO' => ['11','12'],
+    'CS'  => ['11','12'],
+    'CA'  => ['11','12'],
+    'BM'  => ['11','12'],
+    'ECO' => ['11','12'],
+    'COM' => ['11','12'],
+    'ACC' => ['11','12'],
+    'HIS' => ['11','12'],
+]);
+
+define('STANDARDS', ['6','7','8','9','10','11','12']);
+define('MEDIUMS', ['TM' => 'Tamil Medium', 'EM' => 'English Medium']);
 define('SCHOOL_TYPES', ['Govt. School','Govt. Aided School','Matriculation School','Corporation School','CBSE School']);
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
 function normaliseCsv($value, array $allowed): string {
     $items = is_array($value) ? $value : array_map('trim', explode(',', (string)$value));
-    return implode(',', array_unique(array_filter($items, fn($v) => in_array($v, $allowed))));
+    return implode(',', array_unique(array_filter($items, fn($v) => in_array($v, $allowed, true))));
 }
 
 function validatePincode($pin): bool {
     return preg_match('/^\d{6}$/', (string)$pin) === 1;
 }
 
-function expandTeacher(array $t): array {
-    $t['sub_code_arr'] = $t['sub_code'] ? explode(',', $t['sub_code']) : [];
-    $t['std_arr']      = $t['std']      ? explode(',', $t['std'])      : [];
-    $t['medium_arr']   = $t['medium']   ? explode(',', $t['medium'])   : [];
-    return $t;
+function parseClassificationEntries($value): array {
+    if (is_string($value) && trim($value) !== '') {
+        $decoded = json_decode($value, true);
+        if (json_last_error() === JSON_ERROR_NONE && is_array($decoded)) {
+            $value = $decoded;
+        } else {
+            $entries = [];
+            foreach (explode(';', $value) as $rawEntry) {
+                $rawEntry = trim($rawEntry);
+                if ($rawEntry === '') continue;
+
+                [$std, $medium, $subjectsRaw] = array_pad(array_map('trim', explode('|', $rawEntry, 3)), 3, '');
+                $subjects = array_values(array_unique(array_filter(array_map(
+                    'trim',
+                    explode(',', $subjectsRaw)
+                ), fn($subject) => array_key_exists($subject, SUBJECTS))));
+
+                if (!in_array($std, STANDARDS, true) || !array_key_exists($medium, MEDIUMS) || empty($subjects)) continue;
+
+                $subjects = array_values(array_filter($subjects, fn($subject) => in_array($std, SUBJECT_STANDARD_MAP[$subject] ?? STANDARDS, true)));
+                if (empty($subjects)) continue;
+
+                $entries[] = [
+                    'std' => $std,
+                    'medium' => $medium,
+                    'subjects' => $subjects,
+                ];
+            }
+
+            return $entries;
+        }
+    }
+
+    if (!is_array($value)) return [];
+
+    $entries = [];
+    foreach ($value as $entry) {
+        if (!is_array($entry)) continue;
+
+        $std = trim((string)($entry['std'] ?? ''));
+        $medium = trim((string)($entry['medium'] ?? ''));
+        $subjects = $entry['subjects'] ?? [];
+        if (!is_array($subjects)) $subjects = explode(',', (string)$subjects);
+
+        $subjects = array_values(array_unique(array_filter(array_map(
+            fn($subject) => trim((string)$subject),
+            $subjects
+        ), fn($subject) => array_key_exists($subject, SUBJECTS))));
+
+        if (!in_array($std, STANDARDS, true) || !array_key_exists($medium, MEDIUMS) || empty($subjects)) continue;
+
+        $allowedSubjects = SUBJECT_STANDARD_MAP;
+        $subjects = array_values(array_filter($subjects, fn($subject) => in_array($std, $allowedSubjects[$subject] ?? STANDARDS, true)));
+        if (empty($subjects)) continue;
+
+        $entries[] = [
+            'std' => $std,
+            'medium' => $medium,
+            'subjects' => $subjects,
+        ];
+    }
+
+    return $entries;
 }
 
-// ── All fields mandatory validation ──────────────────────────────────────────
-function validateTeacher(array $body, bool $isCreate = true): array {
+function deriveLegacyClassifications(array $body): array {
+    $subs = is_array($body['sub_code'] ?? null) ? $body['sub_code'] : array_map('trim', explode(',', (string)($body['sub_code'] ?? '')));
+    $stds = is_array($body['std'] ?? null) ? $body['std'] : array_map('trim', explode(',', (string)($body['std'] ?? '')));
+    $meds = is_array($body['medium'] ?? null) ? $body['medium'] : array_map('trim', explode(',', (string)($body['medium'] ?? '')));
+
+    $subs = array_values(array_filter($subs, fn($subject) => array_key_exists($subject, SUBJECTS)));
+    $stds = array_values(array_filter($stds, fn($std) => in_array($std, STANDARDS, true)));
+    $meds = array_values(array_filter($meds, fn($medium) => array_key_exists($medium, MEDIUMS)));
+
+    $entries = [];
+    foreach ($stds as $std) {
+        $validSubjects = array_values(array_filter($subs, fn($subject) => in_array($std, SUBJECT_STANDARD_MAP[$subject] ?? STANDARDS, true)));
+        if (empty($validSubjects)) continue;
+
+        foreach ($meds as $medium) {
+            $entries[] = [
+                'std' => $std,
+                'medium' => $medium,
+                'subjects' => $validSubjects,
+            ];
+        }
+    }
+
+    return $entries;
+}
+
+function getTeacherClassificationsFromBody(array $body): array {
+    $entries = parseClassificationEntries($body['classification_map'] ?? ($body['classifications'] ?? null));
+    if (!empty($entries)) return $entries;
+    return deriveLegacyClassifications($body);
+}
+
+function flattenClassifications(array $entries): array {
+    $subjects = [];
+    $standards = [];
+    $mediums = [];
+
+    foreach ($entries as $entry) {
+        $standards[] = $entry['std'];
+        $mediums[] = $entry['medium'];
+        foreach ($entry['subjects'] as $subject) $subjects[] = $subject;
+    }
+
+    $classificationMap = implode(';', array_map(
+        fn($entry) => $entry['std'] . '|' . $entry['medium'] . '|' . implode(',', array_values(array_unique($entry['subjects']))),
+        array_values($entries)
+    ));
+
+    return [
+        'sub_code' => implode(',', array_values(array_unique($subjects))),
+        'std' => implode(',', array_values(array_unique($standards))),
+        'medium' => implode(',', array_values(array_unique($mediums))),
+        'classifications' => $classificationMap,
+    ];
+}
+
+function expandTeacher(array $teacher): array {
+    foreach (['teacher_name', 'teacher_address', 'school_name', 'remarks'] as $field) {
+        if (isset($teacher[$field]) && is_string($teacher[$field])) {
+            $teacher[$field] = html_entity_decode($teacher[$field], ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        }
+    }
+
+    $teacher['sub_code_arr'] = $teacher['sub_code'] ? explode(',', $teacher['sub_code']) : [];
+    $teacher['std_arr'] = $teacher['std'] ? explode(',', $teacher['std']) : [];
+    $teacher['medium_arr'] = $teacher['medium'] ? explode(',', $teacher['medium']) : [];
+
+    $classifications = parseClassificationEntries($teacher['classifications'] ?? null);
+    if (empty($classifications) && !empty($teacher['std_arr']) && !empty($teacher['medium_arr']) && !empty($teacher['sub_code_arr'])) {
+        $classifications = deriveLegacyClassifications($teacher);
+    }
+
+    $teacher['classifications'] = $classifications;
+    $teacher['classification_map'] = flattenClassifications($classifications)['classifications'];
+    return $teacher;
+}
+
+function validateTeacher(array $body): array {
     $errors = [];
 
-    if (empty(trim($body['teacher_name']   ?? ''))) $errors[] = 'Teacher name is required';
+    if (empty(trim($body['teacher_name'] ?? ''))) $errors[] = 'Teacher name is required';
     if (empty(trim($body['contact_number'] ?? ''))) $errors[] = 'Contact number is required';
-    if (empty(trim($body['teacher_address']?? ''))) $errors[] = 'Teacher address is required';
-    if (empty(trim($body['pincode']        ?? ''))) {
+    if (empty(trim($body['teacher_address'] ?? ''))) $errors[] = 'Teacher address is required';
+
+    if (empty(trim($body['pincode'] ?? ''))) {
         $errors[] = 'Pincode is required';
     } elseif (!validatePincode($body['pincode'])) {
         $errors[] = 'Pincode must be exactly 6 numeric digits';
     }
-    if (empty($body['dt_code']) || !array_key_exists($body['dt_code'], DISTRICTS)) {
-        $errors[] = 'District is required';
-    }
 
-    // sub_code: at least one valid subject
-    $subs = is_array($body['sub_code'] ?? null)
-        ? $body['sub_code']
-        : array_map('trim', explode(',', $body['sub_code'] ?? ''));
-    if (empty(array_filter($subs, fn($s) => array_key_exists($s, SUBJECTS)))) {
-        $errors[] = 'At least one subject is required';
-    }
-
-    // std: at least one valid standard
-    $stds = is_array($body['std'] ?? null)
-        ? $body['std']
-        : array_map('trim', explode(',', $body['std'] ?? ''));
-    if (empty(array_filter($stds, fn($s) => in_array($s, STANDARDS)))) {
-        $errors[] = 'At least one standard is required';
-    }
-
-    // medium: at least one valid medium
-    $meds = is_array($body['medium'] ?? null)
-        ? $body['medium']
-        : array_map('trim', explode(',', $body['medium'] ?? ''));
-    if (empty(array_filter($meds, fn($m) => array_key_exists($m, MEDIUMS)))) {
-        $errors[] = 'At least one medium is required';
-    }
-
+    if (empty($body['dt_code']) || !array_key_exists($body['dt_code'], DISTRICTS)) $errors[] = 'District is required';
     if (empty(trim($body['school_name'] ?? ''))) $errors[] = 'School name is required';
-    if (empty($body['school_type']) || !in_array($body['school_type'], SCHOOL_TYPES)) {
-        $errors[] = 'School type is required';
-    }
+    if (empty($body['school_type']) || !in_array($body['school_type'], SCHOOL_TYPES, true)) $errors[] = 'School type is required';
+    if (empty(getTeacherClassificationsFromBody($body))) $errors[] = 'At least one valid classification row is required';
 
     return $errors;
 }
 
-// ── Route dispatch ────────────────────────────────────────────────────────────
+function normaliseImportString($value): string {
+    $trimmed = trim((string)$value);
+    return in_array(strtolower($trimmed), ['null', 'undefined'], true) ? '' : $trimmed;
+}
+
+function normaliseImportNullableString($value): ?string {
+    $trimmed = normaliseImportString($value);
+    return $trimmed === '' ? null : $trimmed;
+}
+
+function normaliseImportTeacherRow(array $row): array {
+    $classificationMap = normaliseImportString($row['classification_map'] ?? ($row['classifications'] ?? ''));
+    $isActiveRaw = normaliseImportString($row['isActive'] ?? '1');
+    $isActive = in_array(strtolower($isActiveRaw), ['0', 'false', 'inactive', 'no'], true) ? 0 : 1;
+
+    return [
+        'id' => is_numeric($row['id'] ?? null) ? (int)$row['id'] : null,
+        'teacher_name' => normaliseImportString($row['teacher_name'] ?? ''),
+        'contact_number' => normaliseImportString($row['contact_number'] ?? ''),
+        'teacher_address' => normaliseImportString($row['teacher_address'] ?? ''),
+        'pincode' => normaliseImportString($row['pincode'] ?? ''),
+        'dt_code' => strtoupper(normaliseImportString($row['dt_code'] ?? '')),
+        'sub_code' => normaliseImportString($row['sub_code'] ?? ''),
+        'std' => normaliseImportString($row['std'] ?? ''),
+        'medium' => strtoupper(normaliseImportString($row['medium'] ?? '')),
+        'classification_map' => $classificationMap,
+        'classifications' => $classificationMap,
+        'school_name' => normaliseImportString($row['school_name'] ?? ''),
+        'school_type' => normaliseImportString($row['school_type'] ?? ''),
+        'remarks' => normaliseImportNullableString($row['remarks'] ?? null),
+        'barcode' => normaliseImportNullableString($row['barcode'] ?? null),
+        'isActive' => $isActive,
+    ];
+}
+
+function findTeacherImportTargetId(mysqli $conn, array $body): ?int {
+    if (empty($body['id'])) return null;
+
+    $stmt = $conn->prepare("SELECT id FROM teachers WHERE id = ? LIMIT 1");
+    $stmt->bind_param('i', $body['id']);
+    $stmt->execute();
+    $match = $stmt->get_result()->fetch_assoc();
+    if ($match) return (int)$match['id'];
+
+    return null;
+}
+
+function insertImportedTeacher(mysqli $conn, array $body, string $actorName = ''): void {
+    $classifications = getTeacherClassificationsFromBody($body);
+    $flattened = flattenClassifications($classifications);
+
+    $teacher_name = sanitize($body['teacher_name']);
+    $contact_number = sanitize($body['contact_number']);
+    $teacher_address = sanitize($body['teacher_address']);
+    $pincode = $body['pincode'];
+    $dt_code = $body['dt_code'];
+    $school_name = sanitize($body['school_name']);
+    $school_type = $body['school_type'];
+    $remarks = $body['remarks'] !== null ? sanitize($body['remarks']) : null;
+    $barcode = $body['barcode'];
+    $isActive = isset($body['isActive']) ? (int)$body['isActive'] : 1;
+
+    $stmt = $conn->prepare("
+        INSERT INTO teachers
+            (teacher_name, contact_number, teacher_address, pincode,
+             dt_code, sub_code, std, medium, classifications, school_name, school_type, remarks, barcode, isActive,
+             created_by, updated_by)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ");
+    $stmt->bind_param(
+        'sssssssssssssiss',
+        $teacher_name, $contact_number, $teacher_address, $pincode,
+        $dt_code, $flattened['sub_code'], $flattened['std'], $flattened['medium'], $flattened['classifications'],
+        $school_name, $school_type, $remarks, $barcode, $isActive, $actorName, $actorName
+    );
+    if (!$stmt->execute()) {
+        throw new RuntimeException('Failed to create teacher: ' . $stmt->error);
+    }
+
+    if (empty($barcode)) {
+        $teacherId = $conn->insert_id;
+        $generatedBarcode = generateBarcode(['id' => $teacherId]);
+        $upd = $conn->prepare("UPDATE teachers SET barcode = ? WHERE id = ?");
+        $upd->bind_param('si', $generatedBarcode, $teacherId);
+        if (!$upd->execute()) {
+            throw new RuntimeException('Failed to generate barcode for imported teacher');
+        }
+    }
+}
+
+function updateImportedTeacher(mysqli $conn, int $id, array $body, string $actorName = ''): void {
+    $classifications = getTeacherClassificationsFromBody($body);
+    $flattened = flattenClassifications($classifications);
+
+    $teacher_name = sanitize($body['teacher_name']);
+    $contact_number = sanitize($body['contact_number']);
+    $teacher_address = sanitize($body['teacher_address']);
+    $pincode = $body['pincode'];
+    $dt_code = $body['dt_code'];
+    $school_name = sanitize($body['school_name']);
+    $school_type = $body['school_type'];
+    $remarks = $body['remarks'] !== null ? sanitize($body['remarks']) : null;
+    $barcode = $body['barcode'];
+    $isActive = isset($body['isActive']) ? (int)$body['isActive'] : 1;
+
+    $stmt = $conn->prepare("
+        UPDATE teachers SET
+            teacher_name=?, contact_number=?, teacher_address=?, pincode=?,
+            dt_code=?, sub_code=?, std=?, medium=?, classifications=?,
+            school_name=?, school_type=?, remarks=?, barcode=?, isActive=?, updated_by=?
+        WHERE id=?
+    ");
+    $stmt->bind_param(
+        'sssssssssssssisi',
+        $teacher_name, $contact_number, $teacher_address, $pincode,
+        $dt_code, $flattened['sub_code'], $flattened['std'], $flattened['medium'], $flattened['classifications'],
+        $school_name, $school_type, $remarks, $barcode, $isActive, $actorName, $id
+    );
+    if (!$stmt->execute()) {
+        throw new RuntimeException('Failed to update teacher: ' . $stmt->error);
+    }
+}
+
+function importTeachersBody(array $body) {
+    $rows = $body['rows'] ?? null;
+
+    if (!is_array($rows) || empty($rows)) {
+        sendError('No teacher rows provided for import', 422);
+    }
+
+    $actorName = requireAuth()['name'] ?? '';
+    $conn = getDBConnection();
+    $summary = [
+        'total' => count($rows),
+        'created' => 0,
+        'updated' => 0,
+        'errors' => [],
+    ];
+
+    foreach ($rows as $index => $row) {
+        if (!is_array($row)) {
+            $summary['errors'][] = [
+                'row' => $index + 2,
+                'message' => 'Invalid CSV row',
+            ];
+            continue;
+        }
+
+        $teacherBody = normaliseImportTeacherRow($row);
+
+        $errors = validateTeacher($teacherBody);
+        if ($errors) {
+            $summary['errors'][] = [
+                'row' => $index + 2,
+                'teacher_name' => $teacherBody['teacher_name'] ?: null,
+                'message' => implode('; ', $errors),
+            ];
+            continue;
+        }
+
+        try {
+            insertImportedTeacher($conn, $teacherBody, $actorName);
+            $summary['created']++;
+        } catch (Throwable $e) {
+            $summary['errors'][] = [
+                'row' => $index + 2,
+                'teacher_name' => $teacherBody['teacher_name'] ?: null,
+                'message' => $e->getMessage(),
+            ];
+        }
+    }
+
+    $conn->close();
+
+    $message = empty($summary['errors'])
+        ? 'Import completed'
+        : 'Import completed with errors';
+
+    sendSuccess($summary, $message);
+}
+
+function importTeachers() {
+    importTeachersBody(getRequestBody());
+}
+
 if ($id) {
     switch ($method) {
         case 'GET':    getTeacher($id);    break;
@@ -108,57 +419,42 @@ if ($id) {
 } else {
     switch ($method) {
         case 'GET':  getTeachers();   break;
-        case 'POST': createTeacher(); break;
+        case 'POST':
+            $body = getRequestBody();
+            if (isset($body['rows']) && is_array($body['rows'])) importTeachersBody($body);
+            createTeacherBody($body);
+            break;
         default: sendError('Method not allowed', 405);
     }
 }
 
-// ── GET /api/teachers ─────────────────────────────────────────────────────────
 function getTeachers() {
-    $conn   = getDBConnection();
-    $where  = ['1=1'];
+    // Check if duplicates are requested
+    if (!empty($_GET['duplicates'])) {
+        getTeacherDuplicates();
+        return;
+    }
+    
+    $conn = getDBConnection();
+    $where = ['1=1'];
     $params = [];
-    $types  = '';
+    $types = '';
 
     if (!empty($_GET['search'])) {
-        $s = '%' . $_GET['search'] . '%';
-        $where[]  = '(t.teacher_name LIKE ? OR t.contact_number LIKE ? OR t.school_name LIKE ? OR t.teacher_address LIKE ?)';
-        $params   = array_merge($params, [$s, $s, $s, $s]);
-        $types   .= 'ssss';
+        $search = '%' . $_GET['search'] . '%';
+        $where[] = '(t.teacher_name LIKE ? OR t.contact_number LIKE ? OR t.school_name LIKE ? OR t.teacher_address LIKE ?)';
+        $params = array_merge($params, [$search, $search, $search, $search]);
+        $types .= 'ssss';
     }
-    if (!empty($_GET['dt_code'])) {
-        $where[]  = 't.dt_code = ?';
-        $params[] = $_GET['dt_code'];
-        $types   .= 's';
-    }
-    if (!empty($_GET['sub_code'])) {
-        $where[]  = 'FIND_IN_SET(?, t.sub_code)';
-        $params[] = $_GET['sub_code'];
-        $types   .= 's';
-    }
-    if (!empty($_GET['std'])) {
-        $where[]  = 'FIND_IN_SET(?, t.std)';
-        $params[] = $_GET['std'];
-        $types   .= 's';
-    }
-    if (!empty($_GET['medium'])) {
-        $where[]  = 'FIND_IN_SET(?, t.medium)';
-        $params[] = $_GET['medium'];
-        $types   .= 's';
-    }
-    if (!empty($_GET['school_type'])) {
-        $where[]  = 't.school_type = ?';
-        $params[] = $_GET['school_type'];
-        $types   .= 's';
-    }
-    if (isset($_GET['isActive'])) {
-        $where[]  = 't.isActive = ?';
-        $params[] = (int)$_GET['isActive'];
-        $types   .= 'i';
-    }
+    if (!empty($_GET['dt_code']))    { $where[] = 't.dt_code = ?';            $params[] = $_GET['dt_code'];     $types .= 's'; }
+    if (!empty($_GET['sub_code']))   { $where[] = 'FIND_IN_SET(?, t.sub_code)'; $params[] = $_GET['sub_code'];  $types .= 's'; }
+    if (!empty($_GET['std']))        { $where[] = 'FIND_IN_SET(?, t.std)';      $params[] = $_GET['std'];       $types .= 's'; }
+    if (!empty($_GET['medium']))     { $where[] = 'FIND_IN_SET(?, t.medium)';   $params[] = $_GET['medium'];    $types .= 's'; }
+    if (!empty($_GET['school_type'])){ $where[] = 't.school_type = ?';          $params[] = $_GET['school_type']; $types .= 's'; }
+    if (isset($_GET['isActive']))    { $where[] = 't.isActive = ?';             $params[] = (int)$_GET['isActive']; $types .= 'i'; }
 
-    $page   = max(1, (int)($_GET['page']  ?? 1));
-    $limit  = max(1, min(100, (int)($_GET['limit'] ?? 20)));
+    $page = max(1, (int)($_GET['page'] ?? 1));
+    $limit = max(1, min(100, (int)($_GET['limit'] ?? 20)));
     $offset = ($page - 1) * $limit;
     $whereSQL = implode(' AND ', $where);
 
@@ -176,51 +472,44 @@ function getTeachers() {
     while ($row = $result->fetch_assoc()) $teachers[] = expandTeacher($row);
 
     $conn->close();
-    sendSuccess([
-        'teachers'   => $teachers,
-        'pagination' => [
-            'total'       => (int)$total,
-            'page'        => $page,
-            'limit'       => $limit,
-            'total_pages' => (int)ceil($total / $limit),
-        ]
-    ]);
+    sendSuccess(['teachers' => $teachers, 'pagination' => ['total' => (int)$total, 'page' => $page, 'limit' => $limit, 'total_pages' => (int)ceil($total / $limit)]]);
 }
 
-// ── POST /api/teachers ────────────────────────────────────────────────────────
-function createTeacher() {
-    $body   = getRequestBody();
-    $errors = validateTeacher($body, true);
+function createTeacherBody(array $body) {
+    $errors = validateTeacher($body);
     if ($errors) sendError('Validation failed', 422, $errors);
 
+    $actorName = requireAuth()['name'] ?? '';
     $conn = getDBConnection();
+    $classifications = getTeacherClassificationsFromBody($body);
+    $flattened = flattenClassifications($classifications);
 
-    $teacher_name    = sanitize($body['teacher_name']);
-    $contact_number  = sanitize($body['contact_number']);
+    $teacher_name = sanitize($body['teacher_name']);
+    $contact_number = sanitize($body['contact_number']);
     $teacher_address = sanitize($body['teacher_address']);
-    $pincode         = $body['pincode'];
-    $dt_code         = $body['dt_code'];
-    $school_name     = sanitize($body['school_name']);
-    $school_type     = $body['school_type'];
-    $sub_code        = normaliseCsv($body['sub_code'] ?? [], array_keys(SUBJECTS));
-    $std             = normaliseCsv($body['std']      ?? [], STANDARDS);
-    $medium          = normaliseCsv($body['medium']   ?? [], array_keys(MEDIUMS));
+    $pincode = $body['pincode'];
+    $dt_code = $body['dt_code'];
+    $school_name = sanitize($body['school_name']);
+    $school_type = $body['school_type'];
+    $remarks = !empty($body['remarks']) ? sanitize($body['remarks']) : null;
 
     $stmt = $conn->prepare("
         INSERT INTO teachers
             (teacher_name, contact_number, teacher_address, pincode,
-             dt_code, sub_code, std, medium, school_name, school_type, isActive)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
+             dt_code, sub_code, std, medium, classifications, school_name, school_type, remarks, isActive,
+             created_by, updated_by)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)
     ");
-    $stmt->bind_param('ssssssssss',
+    $stmt->bind_param(
+        'ssssssssssssss',
         $teacher_name, $contact_number, $teacher_address, $pincode,
-        $dt_code, $sub_code, $std, $medium, $school_name, $school_type
+        $dt_code, $flattened['sub_code'], $flattened['std'], $flattened['medium'], $flattened['classifications'],
+        $school_name, $school_type, $remarks, $actorName, $actorName
     );
     if (!$stmt->execute()) sendError('Failed to create teacher: ' . $stmt->error, 500);
 
     $teacherId = $conn->insert_id;
     $barcode = generateBarcode(['id' => $teacherId]);
-
     $upd = $conn->prepare("UPDATE teachers SET barcode = ? WHERE id = ?");
     $upd->bind_param('si', $barcode, $teacherId);
     $upd->execute();
@@ -234,7 +523,10 @@ function createTeacher() {
     sendSuccess($teacher, 'Teacher created successfully');
 }
 
-// ── GET /api/teachers/{id} ────────────────────────────────────────────────────
+function createTeacher() {
+    createTeacherBody(getRequestBody());
+}
+
 function getTeacher($id) {
     $conn = getDBConnection();
     $stmt = $conn->prepare("SELECT * FROM teachers WHERE id = ?");
@@ -244,56 +536,107 @@ function getTeacher($id) {
     if (!$teacher) sendError('Teacher not found', 404);
     $teacher = expandTeacher($teacher);
 
-    $dStmt = $conn->prepare("
+    $dispatchStmt = $conn->prepare("
         SELECT d.*, (SELECT COUNT(*) FROM followups f WHERE f.dispatch_id = d.id) AS followup_count
         FROM dispatch d WHERE d.teacher_id = ? ORDER BY d.dispatch_date DESC
     ");
-    $dStmt->bind_param('i', $id);
-    $dStmt->execute();
+    $dispatchStmt->bind_param('i', $id);
+    $dispatchStmt->execute();
     $dispatches = [];
-    $res = $dStmt->get_result();
-    while ($row = $res->fetch_assoc()) $dispatches[] = $row;
+    $result = $dispatchStmt->get_result();
+    while ($row = $result->fetch_assoc()) $dispatches[] = $row;
 
     $conn->close();
     sendSuccess(array_merge($teacher, ['dispatches' => $dispatches]));
 }
 
-// ── PUT /api/teachers/{id} ────────────────────────────────────────────────────
+function getTeacherDuplicates() {
+    $conn = getDBConnection();
+    
+    // Get all contact numbers that appear more than once
+    $stmt = $conn->prepare("
+        SELECT contact_number, COUNT(*) as count
+        FROM teachers
+        WHERE contact_number IS NOT NULL AND contact_number != ''
+        GROUP BY contact_number
+        HAVING count > 1
+        ORDER BY count DESC
+    ");
+    $stmt->execute();
+    $duplicateGroups = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+    
+    $duplicates = [];
+    
+    // For each duplicate group, fetch all teachers with that contact number
+    foreach ($duplicateGroups as $group) {
+        $contact = $group['contact_number'];
+        $groupStmt = $conn->prepare("
+            SELECT * FROM teachers
+            WHERE contact_number = ?
+            ORDER BY id ASC
+        ");
+        $groupStmt->bind_param('s', $contact);
+        $groupStmt->execute();
+        $result = $groupStmt->get_result();
+        
+        $teachers = [];
+        while ($row = $result->fetch_assoc()) {
+            $teachers[] = expandTeacher($row);
+        }
+        
+        if (count($teachers) > 1) {
+            $duplicates[] = [
+                'contact_number' => $contact,
+                'count' => count($teachers),
+                'teachers' => $teachers
+            ];
+        }
+    }
+    
+    $conn->close();
+    sendSuccess(['duplicates' => $duplicates, 'total_groups' => count($duplicates)], 'Duplicates retrieved successfully');
+}
+
 function updateTeacher($id) {
-    $body   = getRequestBody();
-    $conn   = getDBConnection();
+    $body = getRequestBody();
+    $conn = getDBConnection();
 
-    $chk = $conn->prepare("SELECT id FROM teachers WHERE id = ?");
-    $chk->bind_param('i', $id);
-    $chk->execute();
-    if (!$chk->get_result()->fetch_assoc()) sendError('Teacher not found', 404);
+    $checkStmt = $conn->prepare("SELECT id FROM teachers WHERE id = ?");
+    $checkStmt->bind_param('i', $id);
+    $checkStmt->execute();
+    if (!$checkStmt->get_result()->fetch_assoc()) sendError('Teacher not found', 404);
 
-    $errors = validateTeacher($body, false);
+    $errors = validateTeacher($body);
     if ($errors) sendError('Validation failed', 422, $errors);
 
-    $teacher_name    = sanitize($body['teacher_name']);
-    $contact_number  = sanitize($body['contact_number']);
-    $teacher_address = sanitize($body['teacher_address']);
-    $pincode         = $body['pincode'];
-    $dt_code         = $body['dt_code'];
-    $school_name     = sanitize($body['school_name']);
-    $school_type     = $body['school_type'];
-    $isActive        = isset($body['isActive']) ? (int)$body['isActive'] : 1;
-    $sub_code        = normaliseCsv($body['sub_code'] ?? [], array_keys(SUBJECTS));
-    $std             = normaliseCsv($body['std']      ?? [], STANDARDS);
-    $medium          = normaliseCsv($body['medium']   ?? [], array_keys(MEDIUMS));
+    $classifications = getTeacherClassificationsFromBody($body);
+    $flattened = flattenClassifications($classifications);
 
+    $teacher_name = sanitize($body['teacher_name']);
+    $contact_number = sanitize($body['contact_number']);
+    $teacher_address = sanitize($body['teacher_address']);
+    $pincode = $body['pincode'];
+    $dt_code = $body['dt_code'];
+    $school_name = sanitize($body['school_name']);
+    $school_type = $body['school_type'];
+    $isActive = isset($body['isActive']) ? (int)$body['isActive'] : 1;
+    $remarks = array_key_exists('remarks', $body)
+        ? (empty($body['remarks']) ? null : sanitize($body['remarks']))
+        : null;
+
+    $actorName = requireAuth()['name'] ?? '';
     $stmt = $conn->prepare("
         UPDATE teachers SET
             teacher_name=?, contact_number=?, teacher_address=?, pincode=?,
-            dt_code=?, sub_code=?, std=?, medium=?,
-            school_name=?, school_type=?, isActive=?
+            dt_code=?, sub_code=?, std=?, medium=?, classifications=?,
+            school_name=?, school_type=?, remarks=?, isActive=?, updated_by=?
         WHERE id=?
     ");
-    $stmt->bind_param('ssssssssssii',
+    $stmt->bind_param(
+        'ssssssssssssssi',
         $teacher_name, $contact_number, $teacher_address, $pincode,
-        $dt_code, $sub_code, $std, $medium,
-        $school_name, $school_type, $isActive, $id
+        $dt_code, $flattened['sub_code'], $flattened['std'], $flattened['medium'], $flattened['classifications'],
+        $school_name, $school_type, $remarks, $isActive, $actorName, $id
     );
     if (!$stmt->execute()) sendError('Failed to update teacher: ' . $stmt->error, 500);
 
@@ -306,13 +649,12 @@ function updateTeacher($id) {
     sendSuccess($teacher, 'Teacher updated successfully');
 }
 
-// ── DELETE /api/teachers/{id} ─────────────────────────────────────────────────
 function deleteTeacher($id) {
     $conn = getDBConnection();
-    $chk  = $conn->prepare("SELECT id FROM teachers WHERE id = ?");
-    $chk->bind_param('i', $id);
-    $chk->execute();
-    if (!$chk->get_result()->fetch_assoc()) sendError('Teacher not found', 404);
+    $stmt = $conn->prepare("SELECT id FROM teachers WHERE id = ?");
+    $stmt->bind_param('i', $id);
+    $stmt->execute();
+    if (!$stmt->get_result()->fetch_assoc()) sendError('Teacher not found', 404);
 
     $stmt = $conn->prepare("UPDATE teachers SET isActive = 0 WHERE id = ?");
     $stmt->bind_param('i', $id);

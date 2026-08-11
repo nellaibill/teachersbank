@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { Users, Package, Bell, TrendingUp, AlertCircle, CheckCircle2, Clock } from 'lucide-react';
 import { teachersApi, dispatchApi, followupsApi } from '@/lib/api';
-import { formatDate, today } from '@/lib/utils';
+import { addDays, formatDate, today, decodeHtmlEntities } from '@/lib/utils';
 
 interface Stats {
   totalTeachers: number;
@@ -35,13 +35,14 @@ export default function Dashboard() {
   useEffect(() => {
     async function load() {
       try {
+        const todayDate = today();
         const [teachers, dispatches, pendingFups, overdueFups, recentDisp, todayFups] = await Promise.all([
           teachersApi.list({ limit: 1 }),
-          dispatchApi.list({ date: today(), limit: 1 }),
-          followupsApi.list({ status: 'Pending', limit: 1 }),
-          followupsApi.list({ status: 'Pending', to_date: today(), limit: 5 }),
+          dispatchApi.list({ date: todayDate, limit: 1 }),
+          followupsApi.list({ status: 'Pending', date: todayDate, dispatch_status: 'Delivered', limit: 1 }),
+          followupsApi.list({ overdue_only: 1, dispatch_status: 'Delivered', limit: 1 }),
           dispatchApi.list({ limit: 5 }),
-          followupsApi.list({ date: 'today', limit: 10 }),
+          followupsApi.list({ date: 'today', dispatch_status: 'Delivered', limit: 10 }),
         ]);
         setStats({
           totalTeachers:   teachers.data?.pagination?.total ?? 0,
@@ -63,8 +64,8 @@ export default function Dashboard() {
   const statCards = [
     { icon: Users,    label: 'Total Teachers',    value: stats?.totalTeachers,    color: 'bg-brand-600',   href: '/teachers' },
     { icon: Package,  label: "Today's Dispatches", value: stats?.todayDispatches,  color: 'bg-emerald-600', href: '/dispatch' },
-    { icon: Bell,     label: 'Pending Follow-ups', value: stats?.pendingFollowups, color: 'bg-amber-500',   href: '/followups' },
-    { icon: AlertCircle, label: 'Overdue Follow-ups', value: stats?.overdueFollowups, color: 'bg-rose-500', href: '/followups?status=Pending' },
+    { icon: Bell,     label: 'Pending Follow-ups', value: stats?.pendingFollowups, color: 'bg-amber-500',   href: '/followups?date=today&status=Pending' },
+    { icon: AlertCircle, label: 'Overdue Follow-ups', value: stats?.overdueFollowups, color: 'bg-rose-500', href: `/followups?status=Pending&to_date=${addDays(today(), -1)}` },
   ];
 
   return (
@@ -101,8 +102,8 @@ export default function Dashboard() {
               {stats?.recentDispatches.map((d: any) => (
                 <div key={d.id} className="flex items-center justify-between py-2 border-b border-ink-50 last:border-0">
                   <div>
-                    <p className="text-sm font-medium text-ink-800">{d.teacher_name}</p>
-                    <p className="text-xs text-ink-400">{d.school_name}</p>
+                    <p className="text-sm font-medium text-ink-800">{decodeHtmlEntities(d.teacher_name)}</p>
+                    <p className="text-xs text-ink-400">{decodeHtmlEntities(d.school_name)}</p>
                   </div>
                   <div className="text-right">
                     <span className={`badge ${d.status === 'Delivered' ? 'bg-emerald-100 text-emerald-700' : 'bg-brand-100 text-brand-700'}`}>
@@ -142,7 +143,7 @@ export default function Dashboard() {
                   </div>
                   <div className="text-right">
                     <span className="badge bg-amber-100 text-amber-700">
-                      Level {f.followup_level}
+                      {formatDate(f.reminder_date)}
                     </span>
                     <p className="text-xs text-ink-400 mt-0.5">{f.status}</p>
                   </div>

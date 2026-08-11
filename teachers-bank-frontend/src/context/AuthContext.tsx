@@ -6,7 +6,7 @@ export interface AuthUser {
   id: number;
   name: string;
   email: string;
-  role: 'admin' | 'operator';
+  role: 'admin' | 'operator' | 'manager';
 }
 
 interface AuthContextType {
@@ -15,12 +15,18 @@ interface AuthContextType {
   login: (email: string, password: string) => Promise<void>;
   logout: () => void;
   isAdmin: boolean;
+  isManager: boolean;
+  canManageUsers: boolean;
 }
 
 const AuthContext = createContext<AuthContextType | null>(null);
 
-const PHP_BASE = 'https://iiplrgscbse.com/teachers-bank-api/index.php';
+const PHP_BASE = (
+  process.env.NEXT_PUBLIC_PHP_API_BASE ||
+  'https://iiplrgscbse.com/teachers-bank-api-v5/index.php'
+).replace(/\/$/, '');
 const PUBLIC_PATHS = ['/login'];
+const OPERATOR_ALLOWED_PATHS = ['/dispatch'];
 const TOKEN_KEY = 'tb_jwt';
 
 // ── Token helpers — sessionStorage so it clears on tab close ─────────────────
@@ -71,8 +77,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (loading) return;
     const isPublic = PUBLIC_PATHS.some(p => pathname.startsWith(p));
-    if (!user && !isPublic) router.replace('/login');
-    else if (user && pathname === '/login') router.replace('/');
+    const isOperatorAllowedPath = OPERATOR_ALLOWED_PATHS.some(p => pathname.startsWith(p));
+
+    if (!user && !isPublic) {
+      router.replace('/login');
+      return;
+    }
+
+    if (user && pathname === '/login') {
+      router.replace(user.role === 'operator' ? '/dispatch' : '/');
+      return;
+    }
+
+    if (user?.role === 'operator' && !isPublic && !isOperatorAllowedPath) {
+      router.replace('/dispatch');
+    }
   }, [user, loading, pathname, router]);
 
   async function login(email: string, password: string) {
@@ -87,7 +106,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     saveToken(json.data.token);
     setUser(json.data.user);
-    router.replace('/');
+    router.replace(json.data.user.role === 'operator' ? '/dispatch' : '/');
   }
 
   function logout() {
@@ -97,7 +116,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, logout, isAdmin: user?.role === 'admin' }}>
+    <AuthContext.Provider
+      value={{
+        user,
+        loading,
+        login,
+        logout,
+        isAdmin: user?.role === 'admin',
+        isManager: user?.role === 'manager',
+        canManageUsers: user?.role === 'admin',
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );

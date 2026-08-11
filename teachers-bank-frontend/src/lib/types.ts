@@ -1,4 +1,5 @@
 // src/lib/types.ts
+// CHANGES: remarks added to Teacher; po_number added to Dispatch
 
 export interface Teacher {
   id: number;
@@ -13,12 +14,17 @@ export interface Teacher {
   std_arr?: string[];
   medium?: string;
   medium_arr?: string[];
+  classifications?: TeacherClassification[] | string;
+  classification_map?: string;
   school_name?: string;
   school_type?: string;
+  remarks?: string;           // ← NEW
   barcode?: string;
   isActive: number;
   created_at: string;
   updated_at: string;
+  created_by?: string;
+  updated_by?: string;
   dispatches?: Dispatch[];
 }
 
@@ -26,10 +32,14 @@ export interface Dispatch {
   id: number;
   teacher_id: number;
   dispatch_date: string;
+  delivered_date?: string;
   pod_date?: string;
+  po_number?: string;
   status: 'Dispatched' | 'Delivered' | 'Returned';
   created_at: string;
   updated_at: string;
+  created_by?: string;
+  updated_by?: string;
   teacher_name?: string;
   contact_number?: string;
   school_name?: string;
@@ -46,18 +56,88 @@ export interface Followup {
   followup_level: number;
   reminder_date: string;
   remarks?: string;
-  status: 'Pending' | 'Informed' | 'Completed' | 'No Answer';
+  status: 'Pending' | 'Processing' | 'Completed' | 'No Answer' | 'Informed';
   created_at: string;
   updated_at: string;
+  created_by?: string;
+  updated_by?: string;
   dispatch_date?: string;
+  delivered_date?: string;
   pod_date?: string;
+  po_number?: string;
   dispatch_status?: string;
   teacher_name?: string;
   contact_number?: string;
   school_name?: string;
   teacher_address?: string;
+  address_1?: string;
+  address_2?: string;
+  address_3?: string;
   pincode?: string;
+  dt_code?: string;
+  std?: string;
+  medium?: string;
   barcode?: string;
+  classifications?: TeacherClassification[] | string;
+  level_history?: Array<{
+    id: number;
+    followup_level: number;
+    reminder_date: string;
+    status: 'Pending' | 'Processing' | 'Completed' | 'No Answer' | 'Informed';
+    remarks?: string;
+    created_by?: string;
+    updated_at?: string;
+  }>;
+}
+
+export interface TeacherClassification {
+  std: string;
+  medium: string;
+  subjects: string[];
+}
+
+// ── Follow-up dashboard types ─────────────────────────────────────────────────
+export interface DashboardDailyEntry {
+  date: string;
+  total: number;
+  by_status: Record<string, number>;
+}
+
+export interface FollowupUserDashboard {
+  from_date: string;
+  to_date: string;
+  user: string;
+  summary: {
+    total: number;
+    by_status: Record<string, number>;
+  };
+  daily: DashboardDailyEntry[];
+  recent: Array<{
+    id: number;
+    followup_level: number;
+    status: string;
+    reminder_date: string;
+    remarks?: string;
+    created_at: string;
+    teacher_name?: string;
+    contact_number?: string;
+    school_name?: string;
+  }>;
+}
+
+export interface FollowupAdminDashboard {
+  from_date: string;
+  to_date: string;
+  overall: {
+    total: number;
+    by_status: Record<string, number>;
+  };
+  users: Array<{
+    name: string;
+    total: number;
+    by_status: Record<string, number>;
+    daily: DashboardDailyEntry[];
+  }>;
 }
 
 export interface Pagination {
@@ -67,69 +147,30 @@ export interface Pagination {
   total_pages: number;
 }
 
-// ── Master Data ───────────────────────────────────────────────────────────────
-
 export const DISTRICTS: Record<string, string> = {
-  ALR: 'Ariyalur',
-  CGP: 'Chengalpattu',
-  CHN: 'Chennai',
-  CBE: 'Coimbatore',
-  CUD: 'Cuddalore',
-  DPI: 'Dharmapuri',
-  DGL: 'Dindigul',
-  ERD: 'Erode',
-  KLK: 'Kallakurichi',
-  KPM: 'Kanchipuram',
-  KKI: 'Kanyakumari',
-  KRL: 'Karaikal',
-  KRR: 'Karur',
-  KGI: 'Krishnagiri',
-  MDU: 'Madurai',
-  MYD: 'Mayiladuthurai',
-  NPM: 'Nagapattinam',
-  NKL: 'Namakkal',
-  NLG: 'Nilgiris',
-  PLR: 'Perambalur',
-  PDY: 'Pondicherry',
-  PDK: 'Pudukottai',
-  RPM: 'Ramanathapuram',
-  RPT: 'Ranipet',
-  SLM: 'Salem',
-  SGI: 'Sivagangai',
-  TJR: 'Thanjavur',
-  TEN: 'Tenkasi',
-  TNI: 'Theni',
-  TVM: 'Thiruvannamalai',
-  TUT: 'Thoothukudi',
-  TRY: 'Tiruchirappalli',
-  TVL: 'Tirunelveli',
-  TPT: 'Tirupathur',
-  TPR: 'Tiruppur',
-  TLR: 'Tiruvallur',
-  TVR: 'Tiruvarur',
-  VLR: 'Vellore',
-  VPM: 'Villupuram',
+  ALR: 'Ariyalur',      CGP: 'Chengalpattu',   CHN: 'Chennai',
+  CBE: 'Coimbatore',    CUD: 'Cuddalore',       DPI: 'Dharmapuri',
+  DGL: 'Dindigul',      ERD: 'Erode',           KLK: 'Kallakurichi',
+  KPM: 'Kanchipuram',   KKI: 'Kanyakumari',     KRL: 'Karaikal',
+  KRR: 'Karur',         KGI: 'Krishnagiri',     MDU: 'Madurai',
+  MYD: 'Mayiladuthurai',NPM: 'Nagapattinam',    NKL: 'Namakkal',
+  NLG: 'Nilgiris',      PLR: 'Perambalur',      PDY: 'Pondicherry',
+  PDK: 'Pudukottai',    RPM: 'Ramanathapuram',  RPT: 'Ranipet',
+  SLM: 'Salem',         SGI: 'Sivagangai',      TJR: 'Thanjavur',
+  TEN: 'Tenkasi',       TNI: 'Theni',           TVM: 'Thiruvannamalai',
+  TUT: 'Thoothukudi',   TRY: 'Tiruchirappalli', TVL: 'Tirunelveli',
+  TPT: 'Tirupathur',    TPR: 'Tiruppur',        TLR: 'Tiruvallur',
+  TVR: 'Tiruvarur',     VLR: 'Vellore',         VPM: 'Villupuram',
   VNR: 'Virudhunagar',
 };
 
 export const SUBJECTS: Record<string, string> = {
-  TAM: 'Tamil',
-  ENG: 'English',
-  MAT: 'Maths',
-  SCI: 'Science',
-  SS:  'Social Science',
-  PHY: 'Physics',
-  CHE: 'Chemistry',
-  BIO: 'Biology',
-  BOT: 'Botany',
-  ZOO: 'Zoology',
-  CS:  'Computer Science',
-  CA:  'Computer Applications',
-  BM:  'Business Maths',
-  ECO: 'Economics',
-  COM: 'Commerce',
-  ACC: 'Accountancy',
-  HIS: 'History',
+  TAM: 'Tamil',    ENG: 'English',  MAT: 'Maths',
+  SCI: 'Science',  SS:  'Social Science', PHY: 'Physics',
+  CHE: 'Chemistry',BIO: 'Biology',  BOT: 'Botany',
+  ZOO: 'Zoology',  CS:  'Computer Science', CA: 'Computer Applications',
+  BM:  'Business Maths', ECO: 'Economics', COM: 'Commerce',
+  ACC: 'Accountancy',    HIS: 'History',
 };
 
 export const MEDIUMS: Record<string, string> = {
@@ -139,16 +180,34 @@ export const MEDIUMS: Record<string, string> = {
 
 export const STANDARDS = ['6', '7', '8', '9', '10', '11', '12'];
 
+export const SUBJECT_STANDARD_MAP: Record<string, string[]> = {
+  TAM: [...STANDARDS],
+  ENG: [...STANDARDS],
+  MAT: [...STANDARDS],
+  SCI: ['6', '7', '8', '9', '10'],
+  SS: ['6', '7', '8', '9', '10'],
+  PHY: ['11', '12'],
+  CHE: ['11', '12'],
+  BIO: ['11', '12'],
+  BOT: ['11', '12'],
+  ZOO: ['11', '12'],
+  CS: ['11', '12'],
+  CA: ['11', '12'],
+  BM: ['11', '12'],
+  ECO: ['11', '12'],
+  COM: ['11', '12'],
+  ACC: ['11', '12'],
+  HIS: ['11', '12'],
+};
+
 export const SCHOOL_TYPES = [
-  'Govt. School',
-  'Govt. Aided School',
-  'Matriculation School',
-  'Corporation School',
-  'CBSE School',
+  'Govt. School', 'Govt. Aided School', 'Matriculation School',
+  'Corporation School', 'CBSE School',
 ];
 
 export const FOLLOWUP_STATUS_COLORS: Record<string, string> = {
   Pending:     'bg-amber-100 text-amber-700',
+  Processing:  'bg-brand-100 text-brand-700',
   Informed:    'bg-brand-100 text-brand-700',
   Completed:   'bg-emerald-100 text-emerald-700',
   'No Answer': 'bg-ink-100 text-ink-500',

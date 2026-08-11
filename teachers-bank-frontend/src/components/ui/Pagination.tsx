@@ -12,26 +12,39 @@ interface Props {
 
 export default function Pagination({ page, totalPages, total, limit, onChange }: Props) {
   if (totalPages <= 1) return null;
-  const from = (page - 1) * limit + 1;
-  const to   = Math.min(page * limit, total);
-
   const pages: (number | '...')[] = [];
-  for (let i = 1; i <= totalPages; i++) {
-    if (i === 1 || i === totalPages || (i >= page - 1 && i <= page + 1)) {
-      pages.push(i);
-    } else if (pages[pages.length - 1] !== '...') {
-      pages.push('...');
-    }
+
+  if (totalPages <= 7) {
+    for (let i = 1; i <= totalPages; i++) pages.push(i);
+  } else {
+    pages.push(1);
+
+    const start = Math.max(2, page - 1);
+    const end = Math.min(totalPages - 1, page + 1);
+
+    if (start > 2) pages.push('...');
+    for (let i = start; i <= end; i++) pages.push(i);
+    if (end < totalPages - 1) pages.push('...');
+
+    pages.push(totalPages);
   }
 
   return (
-    <div className="flex items-center justify-between pt-3 border-t border-ink-100">
-      <p className="text-xs text-ink-500">
-        Showing <span className="font-semibold">{from}–{to}</span> of <span className="font-semibold">{total}</span>
-      </p>
-      <div className="flex items-center gap-1">
-        <button onClick={() => onChange(page - 1)} disabled={page === 1}
-          className="btn-icon btn-ghost btn-sm disabled:opacity-30">
+    <div className="flex items-center justify-between gap-3 pt-3 border-t border-ink-100 flex-wrap">
+      <p className="text-sm text-ink-600">displaying page</p>
+      <div className="flex items-center gap-1 flex-wrap">
+        <button
+          onClick={() => onChange(1)}
+          disabled={page === 1}
+          className="btn-ghost btn btn-sm disabled:opacity-40"
+        >
+          First
+        </button>
+        <button
+          onClick={() => onChange(page - 1)}
+          disabled={page === 1}
+          className="btn-icon btn-ghost btn-sm disabled:opacity-40"
+        >
           <ChevronLeft size={15} />
         </button>
         {pages.map((p, i) => (
@@ -46,11 +59,25 @@ export default function Pagination({ page, totalPages, total, limit, onChange }:
             {p}
           </button>
         ))}
-        <button onClick={() => onChange(page + 1)} disabled={page === totalPages}
-          className="btn-icon btn-ghost btn-sm disabled:opacity-30">
+        <button
+          onClick={() => onChange(page + 1)}
+          disabled={page === totalPages}
+          className="btn-icon btn-ghost btn-sm disabled:opacity-40"
+        >
           <ChevronRight size={15} />
         </button>
+        <button
+          onClick={() => onChange(totalPages)}
+          disabled={page === totalPages}
+          className="btn-ghost btn btn-sm disabled:opacity-40"
+        >
+          Last
+        </button>
       </div>
+      <p className="text-sm text-ink-600">
+        {page.toLocaleString()} of <span className="font-semibold text-brand-600">{totalPages.toLocaleString()}</span>
+        <span className="text-ink-400"> ({total.toLocaleString()} records, {limit}/page)</span>
+      </p>
     </div>
   );
 }

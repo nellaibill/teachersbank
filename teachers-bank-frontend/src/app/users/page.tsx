@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useState, useCallback } from 'react';
-import { Plus, Edit2, UserX, Shield, User, Loader2, X, Eye, EyeOff, RefreshCw } from 'lucide-react';
-import { usersApi } from '@/lib/api';
+import { Plus, Edit2, UserX, Shield, User, Loader2, X, Eye, EyeOff, RefreshCw, Database } from 'lucide-react';
+import { usersApi, backupApi } from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
 import { formatDate, formatDateTime } from '@/lib/utils';
 import EmptyState from '@/components/ui/EmptyState';
@@ -12,7 +12,7 @@ interface UserRecord {
   id: number;
   name: string;
   email: string;
-  role: 'admin' | 'operator';
+  role: 'admin' | 'operator' | 'manager';
   isActive: number;
   last_login: string | null;
   created_at: string;
@@ -92,6 +92,7 @@ function UserFormModal({ user, onClose, onSaved }: { user?: UserRecord | null; o
               <label className="form-label">Role</label>
               <select className="form-select" value={form.role} onChange={e => set('role', e.target.value)}>
                 <option value="operator">Operator</option>
+                <option value="manager">Manager</option>
                 <option value="admin">Admin</option>
               </select>
             </div>
@@ -105,10 +106,18 @@ function UserFormModal({ user, onClose, onSaved }: { user?: UserRecord | null; o
           </div>
 
           {/* Role info */}
-          <div className={`p-3 rounded-lg text-xs ${form.role === 'admin' ? 'bg-brand-50 text-brand-700' : 'bg-ink-50 text-ink-600'}`}>
+          <div className={`p-3 rounded-lg text-xs ${
+            form.role === 'admin'
+              ? 'bg-brand-50 text-brand-700'
+              : form.role === 'manager'
+                ? 'bg-amber-50 text-amber-700'
+                : 'bg-ink-50 text-ink-600'
+          }`}>
             {form.role === 'admin'
               ? '🔑 Admin — full access including user management and delete operations'
-              : '👤 Operator — can view, add, and edit records but cannot delete or manage users'}
+              : form.role === 'manager'
+                ? '👁️ Manager — view-only access across the application'
+                : '👤 Operator — dispatch access only'}
           </div>
 
           <div className="flex gap-3 pt-2 border-t border-ink-100">
@@ -126,17 +135,18 @@ function UserFormModal({ user, onClose, onSaved }: { user?: UserRecord | null; o
 
 // ── Main Page ─────────────────────────────────────────────────────────────────
 export default function UsersPage() {
-  const { user: authUser, isAdmin } = useAuth();
+  const { user: authUser, isAdmin, isManager, loading: authLoading } = useAuth();
   const router = useRouter();
+  const canManageUsers = isAdmin;
   const [users,    setUsers]    = useState<UserRecord[]>([]);
   const [loading,  setLoading]  = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [editUser, setEditUser] = useState<UserRecord | null>(null);
 
-  // Redirect non-admins
+  // Redirect users without access
   useEffect(() => {
-    if (!isAdmin) { router.replace('/'); }
-  }, [isAdmin, router]);
+    if (!authLoading && !isAdmin && !isManager) { router.replace('/'); }
+  }, [authLoading, isAdmin, isManager, router]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -159,7 +169,16 @@ export default function UsersPage() {
     } catch (e: any) { toast.error(e.message); }
   }
 
-  if (!isAdmin) return null;
+  async function handleBackupDownload() {
+    try {
+      await backupApi.download();
+      toast.success('Database backup downloaded');
+    } catch (e: any) {
+      toast.error(e.message || 'Failed to download backup');
+    }
+  }
+
+  if (authLoading || (!isAdmin && !isManager)) return null;
 
   return (
     <div className="space-y-5 max-w-4xl">
@@ -170,14 +189,25 @@ export default function UsersPage() {
           <p className="text-sm text-ink-500 mt-0.5">{users.length} users registered</p>
         </div>
         <div className="flex gap-2">
+          {/* <button  onClick={handleBackupDownload} className="btn-secondary btn">
+            <Database size={15} /> Download Backup
+          </button>*/}
           <button onClick={load} className="btn-secondary btn btn-icon">
             <RefreshCw size={15} className={loading ? 'animate-spin' : ''} />
           </button>
-          <button onClick={() => { setEditUser(null); setShowForm(true); }} className="btn-primary btn">
-            <Plus size={16} /> Add User
-          </button>
+          {canManageUsers && (
+            <button onClick={() => { setEditUser(null); setShowForm(true); }} className="btn-primary btn">
+              <Plus size={16} /> Add User
+            </button>
+          )}
         </div>
       </div>
+
+      {isManager && (
+        <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+          Manager accounts have view-only access. User changes are restricted to admins.
+        </div>
+      )}
 
       {/* Role legend */}
       <div className="flex gap-3 flex-wrap">
@@ -185,7 +215,10 @@ export default function UsersPage() {
           <Shield size={13} className="text-brand-600" /> <strong>Admin</strong> — full access
         </div>
         <div className="flex items-center gap-2 text-xs text-ink-500 bg-white rounded-lg px-3 py-2 border border-ink-100">
-          <User size={13} className="text-ink-500" /> <strong>Operator</strong> — view, add, edit only
+          <Eye size={13} className="text-amber-600" /> <strong>Manager</strong> — view only
+        </div>
+        <div className="flex items-center gap-2 text-xs text-ink-500 bg-white rounded-lg px-3 py-2 border border-ink-100">
+          <User size={13} className="text-ink-500" /> <strong>Operator</strong> — dispatch only
         </div>
       </div>
 
@@ -221,8 +254,14 @@ export default function UsersPage() {
                     )}
                   </td>
                   <td>
-                    <span className={`badge text-xs ${u.role === 'admin' ? 'bg-brand-100 text-brand-700' : 'bg-ink-100 text-ink-600'}`}>
-                      {u.role === 'admin' ? <Shield size={10} /> : <User size={10} />}
+                    <span className={`badge text-xs ${
+                      u.role === 'admin'
+                        ? 'bg-brand-100 text-brand-700'
+                        : u.role === 'manager'
+                          ? 'bg-amber-100 text-amber-700'
+                          : 'bg-ink-100 text-ink-600'
+                    }`}>
+                      {u.role === 'admin' ? <Shield size={10} /> : u.role === 'manager' ? <Eye size={10} /> : <User size={10} />}
                       {u.role}
                     </span>
                   </td>
@@ -235,16 +274,22 @@ export default function UsersPage() {
                   <td className="text-xs text-ink-500">{formatDate(u.created_at)}</td>
                   <td>
                     <div className="flex items-center justify-end gap-1">
-                      <button onClick={() => { setEditUser(u); setShowForm(true); }}
-                        className="btn-ghost btn btn-icon btn-sm text-brand-600">
-                        <Edit2 size={14} />
-                      </button>
-                      {u.id !== authUser?.id && (
-                        <button onClick={() => handleDeactivate(u)}
-                          className="btn-ghost btn btn-icon btn-sm text-rose-500"
-                          title="Deactivate">
-                          <UserX size={14} />
-                        </button>
+                      {canManageUsers ? (
+                        <>
+                          <button onClick={() => { setEditUser(u); setShowForm(true); }}
+                            className="btn-ghost btn btn-icon btn-sm text-brand-600">
+                            <Edit2 size={14} />
+                          </button>
+                          {u.id !== authUser?.id && (
+                            <button onClick={() => handleDeactivate(u)}
+                              className="btn-ghost btn btn-icon btn-sm text-rose-500"
+                              title="Deactivate">
+                              <UserX size={14} />
+                            </button>
+                          )}
+                        </>
+                      ) : (
+                        <span className="text-xs text-ink-400">View only</span>
                       )}
                     </div>
                   </td>
@@ -263,3 +308,4 @@ export default function UsersPage() {
     </div>
   );
 }
+

@@ -97,6 +97,14 @@ function requireAdmin(): array {
     return $payload;
 }
 
+function requireAdminOrManager(): array {
+    $payload = requireAuth();
+    if (!in_array($payload['role'] ?? '', ['admin', 'manager'], true)) {
+        sendError('Forbidden — admin or manager access required', 403);
+    }
+    return $payload;
+}
+
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function base64UrlEncode(string $data): string {
     return rtrim(strtr(base64_encode($data), '+/', '-_'), '=');
